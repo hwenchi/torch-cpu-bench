@@ -35,15 +35,3 @@ uv run python report.py
 ```
 
 Reads `out/results.json` and writes `out/report.html`.
-
-## Layout
-
-- `models/`: the suite, one module per input type
-- `run.py`: runs each model and thread count in a fresh process
-- `report.py`, `report_template.html`: the report
-- `k8s/job.yaml`: namespace, results volume and Job
-- `.github/workflows/image.yml`: builds and pushes the image on push to `main`
-
-## Adding a model
-
-Add an entry to `MODELS` in the matching `models/` module, with `name`, `family`, `task`, `build` and `input`.
