@@ -3,6 +3,7 @@ name = "torch-cpu-bench"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "diffusers>=0.42.0",
     "torch>=2.14.1",
     "torchvision>=0.29.1",
     "transformers>=5.20.2",

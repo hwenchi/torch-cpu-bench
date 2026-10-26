@@ -10,251 +10,228 @@
 <style>
   :root {
     color-scheme: light;
-    --page: #f6f6f4;
-    --card: #ffffff;
+    --bg: #fcfcfb;
+    --surface: #ffffff;
     --inset: #f3f3f1;
-    --border: #e8e7e3;
-    --text-primary: #0f0f0e;
+    --line: #e7e6e2;
+    --text-primary: #111110;
     --text-secondary: #55544e;
     --text-muted: #8c8b85;
-    --grid: #f0efeb;
+    --grid: #efeeea;
     --axis: #cfcec8;
-    --hover: #f7f7f5;
-    --glow: rgb(42 120 214 / 0.10);
-    --shadow: 0 1px 1px rgb(16 16 15 / 0.03), 0 8px 24px -8px rgb(16 16 15 / 0.08);
+    --shadow: 0 8px 24px -8px rgb(16 16 15 / 0.14);
     --series-1: #2a78d6;
     --series-2: #eb6834;
     --series-3: #1baf7a;
     --series-4: #eda100;
     --series-5: #e87ba4;
+    --series-6: #008300;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --page: #0f0f0e;
-      --card: #181817;
-      --inset: #1f1f1e;
-      --border: #2a2a28;
+      --bg: #141413;
+      --surface: #1c1c1b;
+      --inset: #222221;
+      --line: #2c2c2a;
       --text-primary: #f2f1ee;
       --text-secondary: #c3c2b7;
       --text-muted: #8f8e86;
-      --grid: #232321;
-      --axis: #42423e;
-      --hover: #212120;
-      --glow: rgb(57 135 229 / 0.16);
-      --shadow: 0 1px 1px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.5);
+      --grid: #242422;
+      --axis: #44443f;
+      --shadow: 0 8px 24px -8px rgb(0 0 0 / 0.6);
       --series-1: #3987e5;
       --series-2: #d95926;
       --series-3: #199e70;
       --series-4: #c98500;
       --series-5: #d55181;
+    --series-6: #008300;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --page: #0f0f0e;
-    --card: #181817;
-    --inset: #1f1f1e;
-    --border: #2a2a28;
+    --bg: #141413;
+    --surface: #1c1c1b;
+    --inset: #222221;
+    --line: #2c2c2a;
     --text-primary: #f2f1ee;
     --text-secondary: #c3c2b7;
     --text-muted: #8f8e86;
-    --grid: #232321;
-    --axis: #42423e;
-    --hover: #212120;
-    --glow: rgb(57 135 229 / 0.16);
-    --shadow: 0 1px 1px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.5);
+    --grid: #242422;
+    --axis: #44443f;
+    --shadow: 0 8px 24px -8px rgb(0 0 0 / 0.6);
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
     --series-4: #c98500;
     --series-5: #d55181;
+    --series-6: #008300;
   }
+
+  /* Type scale: h1 44 · h2 20 · h3 15 · body 15 · small 13 · micro 11 */
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background:
-      radial-gradient(900px 420px at 15% -10%, var(--glow), transparent 70%),
-      radial-gradient(700px 360px at 95% -5%, color-mix(in srgb, var(--series-3) 10%, transparent), transparent 70%),
-      var(--page);
-    background-repeat: no-repeat;
+    background: var(--bg);
     color: var(--text-primary);
-    font: 14px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-    font-feature-settings: "cv11", "ss01";
+    font: 15px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  main { max-width: 1080px; margin: 0 auto; padding: 72px 16px 80px; }
-  header { margin-bottom: 32px; }
-  h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; letter-spacing: -0.035em; font-weight: 700; margin: 0 0 14px; }
-  .sub { font-size: 17px; color: var(--text-secondary); margin: 0; max-width: 620px; }
-  .chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 28px; }
-  .chip {
-    padding: 14px 16px; border-radius: 14px;
-    background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow);
-    font-size: 12px; color: var(--text-muted);
-  }
-  .chip b { display: block; font-size: 22px; line-height: 1.2; letter-spacing: -0.02em; color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; margin-bottom: 2px; }
-  .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 20px;
-    box-shadow: var(--shadow); padding: 24px; margin-top: 20px;
-  }
-  .card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-  .card-title { font-size: 16px; letter-spacing: -0.01em; font-weight: 600; margin: 0; }
-  .legend { display: flex; flex-wrap: wrap; gap: 6px; }
-  .legend span {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 10px 4px 8px; border-radius: 999px;
-    background: var(--inset); font-size: 12px; color: var(--text-secondary);
-  }
-  .toolbar { background: var(--inset); border-radius: 14px; padding: 6px 16px; margin-bottom: 20px; }
-  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 0; }
-  .controls + .controls { border-top: 1px solid var(--border); }
-  .control-label { width: 96px; font-size: 12px; font-weight: 500; color: var(--text-muted); }
-  .slider { width: 220px; }
-  .slider input {
-    -webkit-appearance: none; appearance: none; width: 100%; height: 20px; margin: 0;
-    background: transparent; cursor: pointer;
-  }
+  main { max-width: 1000px; margin: 0 auto; padding: 72px 16px 96px; }
+  h1 { font-size: clamp(32px, 6vw, 44px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 700; margin: 0; }
+  h2 { font-size: 20px; line-height: 1.3; letter-spacing: -0.015em; font-weight: 600; margin: 0; }
+  h3 { font-size: 15px; font-weight: 600; margin: 0; }
+  p { margin: 0; }
+  .lead { font-size: 18px; line-height: 1.6; color: var(--text-secondary); margin-top: 16px; }
+  .small { font-size: 13px; color: var(--text-muted); }
+
+  section { margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); }
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 20px; }
+  .count { margin-left: 8px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .about { display: grid; gap: 20px; }
+  .about p { margin-top: 6px; color: var(--text-secondary); }
+
+  /* Controls: one label column, one control column, same height everywhere. */
+  .controls { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 14px 16px; margin-bottom: 20px; }
+  .control-label { font-size: 13px; color: var(--text-muted); }
+  .control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; }
+  @media (max-width: 560px) { .controls { grid-template-columns: 1fr; gap: 6px; } .control { margin-bottom: 8px; } }
+
+  .slider { width: 200px; }
+  .slider input { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; margin: 0; background: transparent; cursor: pointer; }
   .slider input::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--axis); }
   .slider input::-moz-range-track { height: 4px; border-radius: 999px; background: var(--axis); }
   .slider input::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 18px; height: 18px; margin-top: -7px; border-radius: 50%;
-    background: var(--card); border: 0; box-shadow: 0 0 0 1px var(--border), 0 2px 6px rgb(0 0 0 / 0.18);
+    -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%;
+    background: var(--text-primary); border: 2px solid var(--bg);
   }
-  .slider input::-moz-range-thumb {
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--card); border: 0; box-shadow: 0 0 0 1px var(--border), 0 2px 6px rgb(0 0 0 / 0.18);
-  }
-  .slider input:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 8px; }
-  .slider-ticks { display: flex; justify-content: space-between; padding: 2px 5px 0; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .slider input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text-primary); border: 2px solid var(--bg); }
+  .slider input:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; border-radius: 6px; }
+  .slider-ticks { display: flex; justify-content: space-between; padding: 0 4px; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .slider-ticks span { cursor: pointer; }
   .slider-ticks span.on { color: var(--text-primary); font-weight: 600; }
   .slider-value { font-size: 13px; color: var(--text-secondary); }
-  .slider-value b { font-size: 22px; letter-spacing: -0.02em; color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 4px; }
-  .presets { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
-  .presets button {
-    font: inherit; font-size: 12px; font-weight: 500; color: var(--text-secondary); background: transparent;
-    border: 0; border-radius: 9px; padding: 6px 12px; cursor: pointer; transition: background 120ms ease, color 120ms ease;
+  .slider-value b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; background: var(--inset); border-radius: 8px; max-width: 100%; }
+  .segmented button {
+    white-space: nowrap;
+    font: inherit; font-size: 13px; color: var(--text-secondary); background: transparent;
+    border: 0; border-radius: 6px; height: 28px; padding: 0 10px; cursor: pointer;
   }
-  .presets button:hover { background: var(--hover); color: var(--text-primary); }
-  .presets button.on { background: var(--text-primary); color: var(--card); }
-  .presets button small { opacity: 0.65; margin-left: 6px; font-variant-numeric: tabular-nums; }
-  .custom { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
-  .custom input {
-    width: 84px; font: inherit; font-size: 12px; color: var(--text-primary); background: var(--card);
-    border: 1px solid var(--border); border-radius: 9px; padding: 6px 10px; font-variant-numeric: tabular-nums;
+  .segmented button:hover { color: var(--text-primary); }
+  .segmented button.on { background: var(--text-primary); color: var(--bg); font-weight: 600; }
+  .segmented small { font-size: 13px; color: var(--text-muted); margin-left: 6px; font-variant-numeric: tabular-nums; }
+  .segmented button.on small { color: inherit; opacity: 0.75; font-weight: 500; }
+
+  .field {
+    font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; height: 32px; padding: 0 10px;
   }
-  .custom input:focus { outline: 2px solid var(--series-1); outline-offset: 1px; }
-  .meets { margin-left: auto; font-size: 13px; color: var(--text-secondary); }
+  .field:focus { outline: 2px solid var(--series-1); outline-offset: -1px; }
+  .meets { font-size: 13px; color: var(--text-secondary); }
   .meets b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
   #chart { position: relative; }
   #chart svg { display: block; width: 100%; height: auto; overflow: visible; }
   .tick text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .axis-title { fill: var(--text-muted); font-size: 12px; font-weight: 500; }
+  .axis-title { fill: var(--text-muted); font-size: 12px; }
   .target-label { fill: var(--text-secondary); font-size: 11px; font-weight: 600; }
   .pt { transition: fill-opacity 150ms ease; }
   .pt.on { fill-opacity: 1; stroke: var(--text-primary); }
+
   #tooltip {
-    position: absolute; pointer-events: none; opacity: 0; transform: translateY(4px);
-    transition: opacity 120ms ease, transform 120ms ease;
-    background: color-mix(in srgb, var(--card) 85%, transparent);
-    backdrop-filter: blur(12px) saturate(1.4); -webkit-backdrop-filter: blur(12px) saturate(1.4);
-    color: var(--text-primary); border: 1px solid var(--border); border-radius: 14px;
-    padding: 12px 14px; font-size: 12px; white-space: nowrap; box-shadow: var(--shadow);
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity 120ms ease;
+    background: var(--surface); color: var(--text-primary); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; white-space: nowrap; box-shadow: var(--shadow);
   }
-  #tooltip.show { opacity: 1; transform: none; }
-  #tooltip .name { font-weight: 600; font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-  #tooltip dl { display: grid; grid-template-columns: auto auto; gap: 3px 16px; margin: 0; }
+  #tooltip.show { opacity: 1; }
+  #tooltip .name { font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  #tooltip dl { display: grid; grid-template-columns: auto auto; gap: 2px 16px; margin: 0; }
   #tooltip dt { color: var(--text-muted); }
   #tooltip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-  .method { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px 40px; }
-  .method ul { list-style: none; margin: 12px 0 0; padding: 0; color: var(--text-secondary); }
-  .method li { position: relative; padding-left: 18px; margin: 8px 0; }
-  .method li::before { content: ""; position: absolute; left: 2px; top: 0.6em; width: 6px; height: 6px; border-radius: 50%; background: var(--axis); }
-  .table-wrap { overflow-x: auto; margin: 0 -24px -24px; }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: right; padding: 11px 24px; border-top: 1px solid var(--border); white-space: nowrap; }
-  th { color: var(--text-muted); font-size: 12px; font-weight: 500; background: var(--inset); }
-  th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
-  tbody tr { transition: background 100ms ease; }
-  tbody tr:hover { background: var(--hover); }
-  td.family { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
-  td.model { font-weight: 500; }
-  tr.miss td { color: var(--text-muted); }
-  .count { margin-left: 6px; font-size: 13px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .filters input[type="search"], .filters select {
-    font: inherit; font-size: 13px; color: var(--text-primary); background: var(--inset);
-    border: 1px solid transparent; border-radius: 10px; padding: 7px 12px;
-  }
+
+  .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
   .filters input[type="search"] { width: 220px; }
-  .filters input[type="search"]:focus, .filters select:focus { outline: none; border-color: var(--series-1); background: var(--card); }
-  .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+  .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; margin-left: 4px; }
   .check input { accent-color: var(--text-primary); margin: 0; }
-  th button {
-    font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 4px;
-  }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { padding-left: 0; }
+  th:last-child, td:last-child { padding-right: 0; }
+  th { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+  th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+  th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
   th button:hover, th button.on { color: var(--text-primary); }
-  th button .arrow { font-size: 10px; opacity: 0.5; }
+  th button .arrow { font-size: 10px; opacity: 0.4; }
   th button.on .arrow { opacity: 1; }
+  td.model { font-weight: 500; }
+  td.family { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+  tr.miss td { color: var(--text-muted); }
+  .fit { color: var(--text-primary); font-weight: 600; }
+  .over { color: var(--text-muted); }
   td.empty { text-align: center; color: var(--text-muted); padding: 28px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-  .badge.fit { background: var(--text-primary); color: var(--card); }
-  .badge.over { background: var(--inset); color: var(--text-muted); }
 </style>
 </head>
 <body>
 <main>
   <header>
     <h1>You might not need a GPU</h1>
-    <p class="sub" id="sub"></p>
-    <div class="chips" id="chips"></div>
+    <p class="lead">GPUs are expensive, and on shared clusters there are far fewer of them than CPUs. They earn their cost when a model has to run a huge number of times: training it, processing a large dataset, serving heavy traffic, or generating output step by step the way language and diffusion models do.</p>
+    <p class="lead">But not every inference workload looks like that. For a mid-sized model handling one request at a time, a handful of CPU cores may be all you need.</p>
   </header>
 
-  <section class="card">
-    <div class="card-head">
-      <h2 class="card-title" id="chart-title"></h2>
-      <div class="legend" id="legend"></div>
+  <section>
+    <div class="section-head"><h2>About the benchmark</h2></div>
+    <div class="about">
+      <div>
+        <h3>What's tested</h3>
+        <p id="what"></p>
+      </div>
+      <div>
+        <h3>How it's tested</h3>
+        <p id="how"></p>
+      </div>
+      <div>
+        <h3>Limits</h3>
+        <p>All timings come from a single node, and each one is a single forward pass. For the language models, that means reading a 128-token prompt, not generating text token by token. Everything runs in 32-bit precision with no quantization or compilation, so a tuned setup would be faster than what's shown here.</p>
+      </div>
     </div>
-    <div class="toolbar">
-      <div class="controls">
-        <span class="control-label">CPU threads</span>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Inference time vs compute</h2></div>
+    <div class="controls">
+      <span class="control-label">CPU threads</span>
+      <div class="control">
         <div class="slider">
           <input type="range" id="threads" min="0" step="1" aria-label="CPU threads">
           <div class="slider-ticks" id="thread-ticks"></div>
         </div>
         <span class="slider-value" id="thread-value"></span>
       </div>
-      <div class="controls">
-        <span class="control-label">Time budget</span>
-        <div class="presets" id="presets"></div>
-        <label class="custom">or <input type="number" id="custom" min="1" step="1" placeholder="custom" aria-label="Custom time budget in ms"> ms</label>
+      <span class="control-label">Time budget</span>
+      <div class="control">
+        <div class="segmented" id="presets"></div>
         <span class="meets" id="meets"></span>
       </div>
     </div>
+    <div class="legend" id="legend"></div>
     <div id="chart"><svg id="svg"></svg><div id="tooltip"></div></div>
   </section>
 
-  <section class="card method">
-    <div>
-      <h2 class="card-title">What's tested</h2>
-      <ul id="what"></ul>
-    </div>
-    <div>
-      <h2 class="card-title">How it's tested</h2>
-      <ul id="how"></ul>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="card-head">
-      <h2 class="card-title">All models <span class="count" id="table-count"></span></h2>
-      <div class="filters">
-        <input type="search" id="table-query" placeholder="Search model or family" aria-label="Search model or family">
-        <select id="table-domain" aria-label="Domain"></select>
-        <label class="check"><input type="checkbox" id="table-fits"> Fits budget</label>
-      </div>
+  <section>
+    <div class="section-head"><h2>All models<span class="count" id="table-count"></span></h2></div>
+    <div class="filters">
+      <input class="field" type="search" id="table-query" placeholder="Search model, task or family" aria-label="Search model, task or family">
+      <select class="field" id="table-domain" aria-label="Domain"></select>
+      <label class="check"><input type="checkbox" id="table-fits"> Fits budget</label>
     </div>
     <div class="table-wrap"><table id="table"></table></div>
   </section>
@@ -264,11 +241,11 @@ const DATA = __RESULTS_JSON__;
 
 const runs = DATA.runs.filter(r => r.status === "ok");
 const families = [...new Set(DATA.runs.map(r => r.family))];
-// Color by domain: there are too many families to give each a distinguishable hue.
-const DOMAIN_LABELS = { vision: "Image classification", detection: "Detection", segmentation: "Segmentation", text: "Text", audio: "Audio" };
+// Color by input type: there are too many families and tasks to give each a distinguishable hue.
+const DOMAIN_LABELS = { image: "Image", video: "Video", text: "Text", audio: "Audio", multimodal: "Image + text", structured: "Structured data" };
 const domains = [...new Set(DATA.runs.map(r => r.domain))];
 const threadCounts = [...new Set(runs.map(r => r.threads))].sort((a, b) => a - b);
-let threads = threadCounts[0];
+let threads = threadCounts[threadCounts.length - 1];
 
 const PRESETS = [
   { label: "Video 30 fps", ms: 33 },
@@ -276,7 +253,7 @@ const PRESETS = [
   { label: "Interactive", ms: 1000 },
   { label: "Background job", ms: 10000 },
 ];
-let target = 100;
+let target = 1000;
 
 // Axes are fixed across all thread counts so points move, not the scale. Presets are kept in range too.
 const xs = runs.map(r => r.gflops);
@@ -310,32 +287,21 @@ const maxParams = Math.max(...runs.map(r => r.params));
 const radius = params => R_MAX * Math.sqrt(params / maxParams);
 
 const swatch = domain =>
-  `<svg width="12" height="12" viewBox="0 0 12 12" style="fill:var(--series-${domains.indexOf(domain) + 1});flex:none"><circle cx="6" cy="6" r="5"/></svg>`;
+  `<svg width="10" height="10" viewBox="0 0 10 10" style="fill:var(--series-${domains.indexOf(domain) + 1});flex:none"><circle cx="5" cy="5" r="5"/></svg>`;
 
 const maxThreads = threadCounts[threadCounts.length - 1];
-const atMax = runs.filter(r => r.threads === maxThreads);
-document.getElementById("sub").textContent =
-  `${atMax.filter(r => r.median_ms <= 100).length} of ${atMax.length} models here finish in under 100 ms on ${maxThreads} CPU cores, batch size 1.`;
 
-document.getElementById("what").innerHTML = [
-  `${new Set(runs.map(r => r.model)).size} PyTorch models in ${families.length} families: ${domains.map(d => (DOMAIN_LABELS[d] || d).toLowerCase()).join(", ")}.`,
-  `Models from torchvision and Hugging Face transformers, with random weights.`,
-  `One forward pass at batch size 1: images at 224–520 px, 128 text tokens, 30 s of audio for Whisper, 1 s for Wav2Vec2.`,
-].map(t => `<li>${t}</li>`).join("");
+const tasks = [...new Set(runs.map(r => r.task))];
+document.getElementById("what").textContent =
+  `${new Set(runs.map(r => r.model)).size} PyTorch models in ${families.length} families, across ${tasks.length} tasks: ${tasks.join(", ").toLowerCase()}. ` +
+  `They come from torchvision, Hugging Face transformers and diffusers, or are written in plain PyTorch, and all use random weights. ` +
+  `Each call is one forward pass at batch size 1, with the input size the model is normally used at.`;
 
-document.getElementById("how").innerHTML = [
-  `PyTorch CPU build in a Linux container, pinned to ${maxThreads} cores.`,
-  `Each model and thread count (${threadCounts.join(", ")}) runs in a fresh process.`,
-  `${DATA.config.warmup} warm-up call, then ${DATA.config.repeats} timed calls; the chart shows the median.`,
-  `GFLOPs counted with PyTorch's FLOP counter, where one multiply-add is 2 FLOPs.`,
-].map(t => `<li>${t}</li>`).join("");
-
-document.getElementById("chips").innerHTML = [
-  [`${atMax.filter(r => r.median_ms <= 100).length} / ${atMax.length}`, `models under 100 ms on ${maxThreads} cores`],
-  [new Set(runs.map(r => r.model)).size, "models"],
-  [domains.length, "domains"],
-  [threadCounts.join(" / "), "CPU threads"],
-].map(([v, k]) => `<div class="chip"><b>${v}</b>${k}</div>`).join("");
+document.getElementById("how").textContent =
+  `The benchmark uses the CPU build of PyTorch and runs as a Kubernetes Job limited to ${maxThreads} CPUs. ` +
+  `Each model is timed at ${threadCounts.join(", ")} threads, each in a fresh process. ` +
+  `A run makes ${DATA.config.warmup} warm-up call and then ${DATA.config.repeats} timed calls, and the chart shows the median. ` +
+  `GFLOPs come from PyTorch's FLOP counter, which counts one multiply-add as 2 FLOPs.`;
 
 const sizeKey = [10e6, 100e6, 300e6].filter(p => p <= maxParams * 1.1);
 document.getElementById("legend").innerHTML = domains.map(d => `<span>${swatch(d)}${DOMAIN_LABELS[d] || d}</span>`).join("") +
@@ -349,8 +315,7 @@ const tooltip = document.getElementById("tooltip");
 const chart = document.getElementById("chart");
 
 function render() {
-  document.getElementById("chart-title").textContent = `CPU time vs compute`;
-  document.getElementById("thread-value").innerHTML = `<b>${threads}</b>thread${threads > 1 ? "s" : ""}`;
+  document.getElementById("thread-value").innerHTML = `<b>${threads}</b> thread${threads > 1 ? "s" : ""}`;
   document.querySelectorAll("#thread-ticks span").forEach(el => el.classList.toggle("on", +el.dataset.t === threads));
 
   const W = Math.max(320, chart.clientWidth);
@@ -372,7 +337,7 @@ function render() {
   s += `<text class="axis-title" transform="translate(12 ${m.top + ih / 2}) rotate(-90)" text-anchor="middle">Time per inference (log)</text>`;
 
   const preset = PRESETS.find(p => p.ms === target);
-  // Target is clamped to the y-axis range, so the line always stays inside the plot.
+  // Presets are part of the y-axis range, so the line always stays inside the plot.
   const ty = sy(target);
   s += `<rect x="${m.left}" y="${m.top}" width="${iw}" height="${ty - m.top}" fill="var(--text-primary)" fill-opacity="0.03"/>`;
   s += `<line x1="${m.left}" x2="${m.left + iw}" y1="${ty}" y2="${ty}" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
@@ -384,12 +349,12 @@ function render() {
     const d = domains.indexOf(r.domain);
     const x = sx(r.gflops), y = sy(r.median_ms), rad = radius(r.params);
     const opacity = r.median_ms <= target ? 0.8 : 0.2;
-    s += `<circle class="pt" id="pt-${i}" cx="${x}" cy="${y}" r="${rad}" fill="var(--series-${d + 1})" fill-opacity="${opacity}" stroke="var(--card)" stroke-width="1.5"/>`;
+    s += `<circle class="pt" id="pt-${i}" cx="${x}" cy="${y}" r="${rad}" fill="var(--series-${d + 1})" fill-opacity="${opacity}" stroke="var(--bg)" stroke-width="1.5"/>`;
     s += `<circle cx="${x}" cy="${y}" r="${Math.max(rad, 8)}" fill="transparent" data-i="${i}" style="cursor:pointer"/>`;
   });
 
   const meeting = current.filter(r => r.median_ms <= target).length;
-  document.getElementById("meets").innerHTML = `<b>${meeting}</b> of ${current.length} models fit at ${threads} thread${threads > 1 ? "s" : ""}`;
+  document.getElementById("meets").innerHTML = `<b>${meeting}</b> of ${current.length} models fit`;
   document.querySelectorAll("#presets button").forEach(el => el.classList.toggle("on", +el.dataset.ms === target));
 
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -405,9 +370,10 @@ function render() {
         `<dt>Threads</dt><dd>${r.threads}</dd>` +
         `<dt>GFLOPs</dt><dd>${fmtGflops(r.gflops)}</dd>` +
         `<dt>Params</dt><dd>${fmtParams(r.params)}</dd>` +
-        `<dt>Input</dt><dd>${r.input_shape.join("×")}</dd>` +
+        `<dt>Shape</dt><dd>${r.input_shape.join("×")}</dd>` +
+        `<dt>Task</dt><dd>${r.task}</dd>` +
         `<dt>Family</dt><dd>${r.family}</dd>` +
-        `<dt>Domain</dt><dd>${DOMAIN_LABELS[r.domain] || r.domain}</dd></dl>`;
+        `<dt>Input</dt><dd>${DOMAIN_LABELS[r.domain] || r.domain}</dd></dl>`;
       tooltip.classList.add("show");
       const cx = +el.getAttribute("cx"), cy = +el.getAttribute("cy");
       const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -431,7 +397,7 @@ const tableFits = document.getElementById("table-fits");
 function renderTable() {
   const columns = [
     { key: "model", label: "Model", get: r => r.model },
-    { key: "family", label: "Family", get: r => r.family },
+    { key: "task", label: "Task", get: r => r.task },
     { key: "params", label: "Params", get: r => r.params },
     { key: "gflops", label: "GFLOPs", get: r => r.gflops },
     { key: "time", label: `Time · ${threads} thr`, get: r => r.median_ms },
@@ -440,7 +406,7 @@ function renderTable() {
   const q = tableQuery.value.trim().toLowerCase();
   const all = runs.filter(r => r.threads === threads);
   const rows = all.filter(r =>
-    (!q || r.model.toLowerCase().includes(q) || r.family.toLowerCase().includes(q)) &&
+    (!q || [r.model, r.family, r.task].some(s => s.toLowerCase().includes(q))) &&
     (!tableDomain.value || r.domain === tableDomain.value) &&
     (!tableFits.checked || r.median_ms <= target));
   const get = columns.find(c => c.key === sortKey).get;
@@ -455,12 +421,12 @@ function renderTable() {
       `<th aria-sort="${c.key === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none"}">` +
       `<button type="button" data-key="${c.key}" class="${c.key === sortKey ? "on" : ""}">${c.label}<span class="arrow">${c.key === sortKey ? (sortDir > 0 ? "↑" : "↓") : "↕"}</span></button></th>`
     ).join("") + `</tr></thead><tbody>` +
-    (rows.length ? rows.map(r => `<tr class="${r.median_ms <= target ? "" : "miss"}"><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.family}</td><td>${fmtParams(r.params)}</td><td>${fmtGflops(r.gflops)}</td><td>${fmtMs(r.median_ms)}</td><td>${r.median_ms <= target ? `<span class="badge fit">fits</span>` : `<span class="badge over">${(r.median_ms / target).toFixed(1)}× over</span>`}</td></tr>`).join("")
+    (rows.length ? rows.map(r => `<tr class="${r.median_ms <= target ? "" : "miss"}"><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.task}</td><td>${fmtParams(r.params)}</td><td>${fmtGflops(r.gflops)}</td><td>${fmtMs(r.median_ms)}</td><td>${r.median_ms <= target ? `<span class="fit">fits</span>` : `<span class="over">${(r.median_ms / target).toFixed(1)}× over</span>`}</td></tr>`).join("")
       : `<tr><td colspan="6" class="empty">No models match these filters.</td></tr>`) +
     `</tbody>`;
 }
 
-tableDomain.innerHTML = `<option value="">All domains</option>` + domains.map(d => `<option value="${d}">${DOMAIN_LABELS[d] || d}</option>`).join("");
+tableDomain.innerHTML = `<option value="">All inputs</option>` + domains.map(d => `<option value="${d}">${DOMAIN_LABELS[d] || d}</option>`).join("");
 tableQuery.addEventListener("input", renderTable);
 tableDomain.addEventListener("change", renderTable);
 tableFits.addEventListener("change", renderTable);
@@ -475,22 +441,16 @@ document.getElementById("table").addEventListener("click", e => {
 // Slider moves over indices so it snaps to measured thread counts only.
 const slider = document.getElementById("threads");
 slider.max = threadCounts.length - 1;
-slider.value = 0;
+slider.value = threadCounts.length - 1;
 slider.addEventListener("input", () => { threads = threadCounts[+slider.value]; render(); });
 document.getElementById("thread-ticks").innerHTML = threadCounts.map((t, i) => `<span data-t="${t}" data-i="${i}">${t}</span>`).join("");
 document.querySelectorAll("#thread-ticks span").forEach(el =>
   el.addEventListener("click", () => { slider.value = el.dataset.i; threads = +el.dataset.t; render(); }));
 
-const custom = document.getElementById("custom");
 document.getElementById("presets").innerHTML = PRESETS.map(p =>
   `<button type="button" data-ms="${p.ms}">${p.label}<small>${fmtMs(p.ms)}</small></button>`).join("");
 document.querySelectorAll("#presets button").forEach(el =>
-  el.addEventListener("click", () => { target = +el.dataset.ms; custom.value = ""; render(); }));
-custom.min = yDomain[0];
-custom.max = yDomain[1];
-custom.addEventListener("input", () => {
-  if (+custom.value > 0) { target = Math.min(Math.max(+custom.value, yDomain[0]), yDomain[1]); render(); }
-});
+  el.addEventListener("click", () => { target = +el.dataset.ms; render(); }));
 
 render();
 new ResizeObserver(render).observe(chart);

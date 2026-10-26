@@ -13,13 +13,13 @@ REPEATS = 5
 def worker(name, threads):
     import torch
     from torch.utils.flop_counter import FlopCounterMode
-    from suite import SUITE
+    from models import MODELS
 
     torch.set_num_threads(threads)
     torch.set_num_interop_threads(1)
     torch.set_default_device("cpu")
 
-    entry = next(m for m in SUITE if m["name"] == name)
+    entry = next(m for m in MODELS if m["name"] == name)
     torch.manual_seed(0)
     model = entry["build"]().eval()
     x = entry["input"]()
@@ -50,7 +50,7 @@ def worker(name, threads):
 
 
 def main():
-    from suite import SUITE
+    from models import MODELS
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="*", help="subset of model names (default: all)")
@@ -62,19 +62,19 @@ def main():
     if cpus < max(THREADS):
         sys.exit(f"need at least {max(THREADS)} CPUs, only {cpus} available (run docker with --cpuset-cpus=0-{max(THREADS) - 1})")
 
-    models = [m for m in SUITE if not args.models or m["name"] in args.models]
+    selected = [m for m in MODELS if not args.models or m["name"] in args.models]
     results = {
         "config": {"threads": THREADS, "warmup": WARMUP, "repeats": REPEATS, "timeout_s": args.timeout},
         "runs": [],
     }
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
 
-    total = len(models) * len(THREADS)
+    total = len(selected) * len(THREADS)
     i = 0
-    for m in models:
+    for m in selected:
         for t in THREADS:
             i += 1
-            row = {"model": m["name"], "family": m["family"], "domain": m["domain"], "threads": t}
+            row = {"model": m["name"], "family": m["family"], "domain": m["domain"], "task": m["task"], "threads": t}
             env = dict(os.environ, OMP_NUM_THREADS=str(t), OPENBLAS_NUM_THREADS=str(t))
             start = time.perf_counter()
             try:
