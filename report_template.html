@@ -200,8 +200,14 @@
   th button .arrow { font-size: 10px; opacity: 0.4; }
   th button.on .arrow { opacity: 1; }
   td.model { font-weight: 500; }
-  td.family { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
-  tr.miss td { color: var(--text-muted); }
+  td.family { color: var(--text-secondary); }
+  td.family svg { vertical-align: -1px; margin-right: 8px; }
+  td.miss { color: var(--text-muted); }
+  th.group { text-align: center; padding-bottom: 4px; color: var(--text-secondary); border-bottom: 0; }
+  thead tr:first-child th { border-bottom: 0; }
+  th.selected, td.selected { background: var(--inset); padding-right: 12px; }
+  /* The table breaks out of the text column so all latency columns fit side by side. */
+  section.wide { width: min(1320px, calc(100vw - 32px)); margin-left: calc(50% - min(660px, 50vw - 16px)); }
   td.empty { text-align: center; color: var(--text-muted); padding: 28px; }
 </style>
 </head>
@@ -263,7 +269,7 @@
     <ul class="failures" id="failures" hidden></ul>
   </section>
 
-  <section>
+  <section class="wide">
     <div class="section-head"><h2>All models<span class="count" id="table-count"></span></h2></div>
     <div class="filters">
       <input class="field" type="search" id="table-query" placeholder="Search model, task or family" aria-label="Search model, task or family">
@@ -521,28 +527,43 @@ const tableQuery = document.getElementById("table-query");
 const tableDomain = document.getElementById("table-domain");
 const tableFits = document.getElementById("table-fits");
 
+// One row per model with its latency at every thread count, plain and compiled. Runs are looked up by model and thread count.
+const MODES = hasCompiled ? [["eager", "Plain PyTorch"], ["compiled", "torch.compile"]] : [["eager", "Plain PyTorch"]];
+const runAt = new Map(DATA.runs.map(r => [`${r.model}|${r.threads}`, r]));
+const latency = (model, t, m) => {
+  const r = runAt.get(`${model}|${t}`);
+  return r && r.status === "ok" ? (m === "eager" ? r.median_ms : r.compiled_median_ms) ?? null : null;
+};
+const latencyText = (model, t, m) => {
+  const r = runAt.get(`${model}|${t}`);
+  if (!r) return "–";
+  if (r.status === "timeout") return "timed out";
+  if (r.status !== "ok") return "failed";
+  const v = latency(model, t, m);
+  return v != null ? fmtMs(v) : "did not compile";
+};
+// Size figures don't depend on thread count, so any successful run of the model supplies them.
+const models = [...new Set(DATA.runs.map(r => r.model))].map(name => {
+  const any = runs.find(r => r.model === name) || DATA.runs.find(r => r.model === name);
+  return { model: name, task: any.task, family: any.family, domain: any.domain, params: any.params, gflops: any.gflops };
+});
+
 function renderTable() {
   const columns = [
     { key: "model", label: "Model", get: r => r.model },
     { key: "task", label: "Task", get: r => r.task },
     { key: "params", label: "Parameters", get: r => r.params },
     { key: "gflops", label: "GFLOPs per call", get: r => r.gflops },
-    { key: "time", label: "Latency", get: r => timeOf(r) },
+    ...MODES.flatMap(([m]) => threadCounts.map(t =>
+      ({ key: `${m}-${t}`, label: plural(t, "thread"), mode: m, threads: t, get: r => latency(r.model, t, m) }))),
   ];
-  if (!columns.some(c => c.key === sortKey)) sortKey = "time";
+  const selectedKey = `${mode}-${threads}`;
+  if (!columns.some(c => c.key === sortKey)) sortKey = selectedKey;
   const q = tableQuery.value.trim().toLowerCase();
-  // Every model appears, including runs that failed or didn't compile. A failed run has no size figures of its own,
-  // so it borrows them from the same model at another thread count.
-  const all = DATA.runs.filter(r => r.threads === threads)
-    .map(r => {
-      if (r.status === "ok") return r;
-      const other = runs.find(o => o.model === r.model);
-      return { ...r, params: other?.params, gflops: other?.gflops };
-    });
-  const rows = all.filter(r =>
+  const rows = models.filter(r =>
     matchesQuery(r, q) &&
     (!tableDomain.value || r.domain === tableDomain.value) &&
-    (!tableFits.checked || timeOf(r) <= target));
+    (!tableFits.checked || latency(r.model, threads, mode) <= target));
   const get = columns.find(c => c.key === sortKey).get;
   rows.sort((a, b) => {
     const va = get(a), vb = get(b);
@@ -550,14 +571,25 @@ function renderTable() {
     return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * sortDir;
   });
 
-  document.getElementById("table-count").textContent = `${rows.length} of ${all.length}`;
+  const header = c =>
+    `<th aria-sort="${c.key === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none"}"${c.key === selectedKey ? ` class="selected"` : ""}>` +
+    `<button type="button" data-key="${c.key}" class="${c.key === sortKey ? "on" : ""}">${c.label}<span class="arrow">${c.key === sortKey ? (sortDir > 0 ? "↑" : "↓") : "↕"}</span></button></th>`;
+  const fixed = columns.filter(c => !c.mode), latencies = columns.filter(c => c.mode);
+  // Latency cells over the budget are dimmed; the column matching the chart's thread count and mode is highlighted.
+  const cell = (r, c) => {
+    const v = latency(r.model, c.threads, c.mode);
+    const cls = [c.key === selectedKey ? "selected" : "", v == null || v > target ? "miss" : ""].filter(Boolean).join(" ");
+    return `<td${cls ? ` class="${cls}"` : ""}>${latencyText(r.model, c.threads, c.mode)}</td>`;
+  };
+
+  document.getElementById("table-count").textContent = `${rows.length} of ${models.length}`;
   document.getElementById("table").innerHTML =
-    `<thead><tr>` + columns.map(c =>
-      `<th aria-sort="${c.key === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none"}">` +
-      `<button type="button" data-key="${c.key}" class="${c.key === sortKey ? "on" : ""}">${c.label}<span class="arrow">${c.key === sortKey ? (sortDir > 0 ? "↑" : "↓") : "↕"}</span></button></th>`
-    ).join("") + `</tr></thead><tbody>` +
-    (rows.length ? rows.map(r => `<tr class="${timeOf(r) <= target ? "" : "miss"}"><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.task}</td><td>${r.params != null ? fmtParams(r.params) : "–"}</td><td>${r.gflops != null ? fmtGflops(r.gflops) : "–"}</td>` +
-        `<td>${r.status === "timeout" ? "timed out" : r.status !== "ok" ? "failed" : timeOf(r) != null ? fmtMs(timeOf(r)) : "did not compile"}</td></tr>`).join("")
+    `<thead><tr>` + fixed.map(() => `<th></th>`).join("") +
+    MODES.map(([, label]) => `<th class="group" colspan="${threadCounts.length}">${label} latency</th>`).join("") + `</tr>` +
+    `<tr>` + columns.map(header).join("") + `</tr></thead><tbody>` +
+    (rows.length ? rows.map(r => `<tr><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.task}</td>` +
+        `<td>${r.params != null ? fmtParams(r.params) : "–"}</td><td>${r.gflops != null ? fmtGflops(r.gflops) : "–"}</td>` +
+        latencies.map(c => cell(r, c)).join("") + `</tr>`).join("")
       : `<tr><td colspan="${columns.length}" class="empty">No models match these filters.</td></tr>`) +
     `</tbody>`;
 }
