@@ -6,7 +6,7 @@
 <title>CPU Model Speed</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: light;
@@ -74,7 +74,7 @@
     margin: 0;
     background: var(--bg);
     color: var(--text-primary);
-    font: 15px/1.6 Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 15px/1.6 "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   main { max-width: 1000px; margin: 0 auto; padding: 72px 16px 96px; }
@@ -141,9 +141,16 @@
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
 
   #chart { position: relative; }
-  #chart svg { display: block; width: 100%; height: auto; overflow: visible; }
-  .tick text { fill: var(--text-muted); font: 11px "Geist Mono", ui-monospace, monospace; }
-  .num, td:nth-child(n+3), #tooltip dd { font-family: "Geist Mono", ui-monospace, monospace; font-size: 13px; }
+  #chart svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; user-select: none; cursor: grab; }
+  #chart svg.panning { cursor: grabbing; }
+  .chart-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; margin-bottom: 4px; }
+  .hint { font-size: 12px; color: var(--text-muted); }
+  .reset {
+    font: inherit; font-size: 13px; color: var(--text-primary); background: var(--inset);
+    border: 0; border-radius: 8px; height: 28px; padding: 0 10px; cursor: pointer;
+  }
+  .tick text { fill: var(--text-muted); font: 11px "IBM Plex Mono", ui-monospace, monospace; }
+  .num, td:nth-child(n+3), #tooltip dd { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
   .axis-title { fill: var(--text-muted); font-size: 12px; }
   .target-label { fill: var(--text-secondary); font-size: 11px; font-weight: 600; }
   .pt { transition: fill-opacity 150ms ease; }
@@ -208,6 +215,10 @@
       </div>
     </div>
     <div class="legend" id="legend"></div>
+    <div class="chart-bar">
+      <span class="hint">Scroll or pinch to zoom · drag to pan · double-click to zoom in</span>
+      <button class="reset" type="button" id="zoom-reset" hidden>Reset zoom</button>
+    </div>
     <div id="chart"><svg id="svg"></svg><div id="tooltip"></div></div>
   </section>
 
@@ -277,10 +288,30 @@ const xDomain = [niceLo(Math.min(...xs) / 1.2), niceHi(Math.max(...xs) * 1.2)];
 const yDomain = [niceLo(Math.min(...ys) / 1.2), niceHi(Math.max(...ys) * 1.2)];
 
 function ticks([lo, hi]) {
-  const out = [];
-  for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
-    for (const n of NICE) { const v = n * 10 ** e; if (v >= lo * 0.999 && v <= hi * 1.001) out.push(v); }
-  return out;
+  // 1-2-5 per decade; when zoomed in far enough that leaves too few, use every integer step.
+  for (const steps of [NICE, [1, 2, 3, 4, 5, 6, 7, 8, 9]]) {
+    const out = [];
+    for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
+      for (const n of steps) { const v = n * 10 ** e; if (v >= lo * 0.999 && v <= hi * 1.001) out.push(v); }
+    if (out.length >= 3 || steps !== NICE) return out;
+  }
+}
+
+// Zoom state: the visible ranges, never wider than the full data range.
+const view = { x: [...xDomain], y: [...yDomain] };
+let plot = null;  // last render's geometry, used to turn pointer positions into data values
+const isZoomed = () => view.x[0] > xDomain[0] || view.x[1] < xDomain[1] || view.y[0] > yDomain[0] || view.y[1] < yDomain[1];
+const MIN_SPAN = 0.05;  // in decades: the furthest you can zoom in
+
+function clampRange([lo, hi], [min, max]) {
+  // Keep the range's width (in log space) and slide it back inside the full domain.
+  let [a, b] = [Math.log10(lo), Math.log10(hi)];
+  const [fa, fb] = [Math.log10(min), Math.log10(max)];
+  if (b - a < MIN_SPAN) { const c = (a + b) / 2; a = c - MIN_SPAN / 2; b = c + MIN_SPAN / 2; }
+  if (b - a >= fb - fa) return [min, max];
+  if (a < fa) { b += fa - a; a = fa; }
+  if (b > fb) { a -= b - fb; b = fb; }
+  return [10 ** a, 10 ** b];
 }
 const fmtGflops = v => v >= 1 ? String(+v.toPrecision(3)) : String(+v.toPrecision(2));
 const fmtMs = v => v >= 1000 ? `${+(v / 1000).toPrecision(3)} s` : `${+v.toPrecision(3)} ms`;
@@ -349,26 +380,30 @@ function render() {
   const H = Math.round(Math.min(560, Math.max(320, W * 0.58)));
   const m = { top: 8, right: 8, bottom: 50, left: 88 };
   const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
-  const sx = v => m.left + (Math.log10(v) - Math.log10(xDomain[0])) / (Math.log10(xDomain[1]) - Math.log10(xDomain[0])) * iw;
-  const sy = v => m.top + ih - (Math.log10(v) - Math.log10(yDomain[0])) / (Math.log10(yDomain[1]) - Math.log10(yDomain[0])) * ih;
+  const [lx0, lx1] = view.x.map(Math.log10), [ly0, ly1] = view.y.map(Math.log10);
+  const sx = v => m.left + (Math.log10(v) - lx0) / (lx1 - lx0) * iw;
+  const sy = v => m.top + ih - (Math.log10(v) - ly0) / (ly1 - ly0) * ih;
+  plot = { m, iw, ih, lx0, lx1, ly0, ly1 };
 
-  let s = "";
-  for (const v of ticks(xDomain))
+  let s = `<defs><clipPath id="plot-area"><rect x="${m.left}" y="${m.top}" width="${iw}" height="${ih}"/></clipPath></defs>`;
+  for (const v of ticks(view.x))
     s += `<g class="tick"><line x1="${sx(v)}" x2="${sx(v)}" y1="${m.top}" y2="${m.top + ih}" stroke="var(--grid)"/>` +
          `<text x="${sx(v)}" y="${m.top + ih + 18}" text-anchor="middle">${fmtGflops(v)}</text></g>`;
-  for (const v of ticks(yDomain))
+  for (const v of ticks(view.y))
     s += `<g class="tick"><line x1="${m.left}" x2="${m.left + iw}" y1="${sy(v)}" y2="${sy(v)}" stroke="var(--grid)"/>` +
          `<text x="${m.left - 10}" y="${sy(v) + 4}" text-anchor="end">${fmtMs(v)}</text></g>`;
   s += `<line x1="${m.left}" x2="${m.left + iw}" y1="${m.top + ih}" y2="${m.top + ih}" stroke="var(--axis)"/>`;
   s += `<text class="axis-title" x="${m.left + iw / 2}" y="${H - 6}" text-anchor="middle">GFLOPs per inference (log)</text>`;
   s += `<text class="axis-title" transform="translate(12 ${m.top + ih / 2}) rotate(-90)" text-anchor="middle">Time per inference (log)</text>`;
 
+  // Everything data-driven is clipped to the plot so it can't spill past the axes when zoomed in.
+  s += `<g clip-path="url(#plot-area)">`;
   const preset = PRESETS.find(p => p.ms === target);
-  // Presets are part of the y-axis range, so the line always stays inside the plot.
   const ty = sy(target);
-  s += `<rect x="${m.left}" y="${m.top}" width="${iw}" height="${ty - m.top}" fill="var(--text-primary)" fill-opacity="0.03"/>`;
+  s += `<rect x="${m.left}" y="${m.top}" width="${iw}" height="${Math.max(0, ty - m.top)}" fill="var(--text-primary)" fill-opacity="0.03"/>`;
   s += `<line x1="${m.left}" x2="${m.left + iw}" y1="${ty}" y2="${ty}" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
-  s += `<text class="target-label" x="${m.left + iw - 4}" y="${ty - m.top < 20 ? ty + 15 : ty - 6}" text-anchor="end">${fmtMs(target)} budget${preset ? " · " + preset.label.toLowerCase() : ""}</text>`;
+  if (ty >= m.top && ty <= m.top + ih)
+    s += `<text class="target-label" x="${m.left + iw - 4}" y="${ty - m.top < 20 ? ty + 15 : ty - 6}" text-anchor="end">${fmtMs(target)} budget${preset ? " · " + preset.label.toLowerCase() : ""}</text>`;
 
   // Largest first so small circles sit on top and stay hoverable.
   const current = runs.filter(r => r.threads === threads).sort((a, b) => b.params - a.params);
@@ -379,6 +414,8 @@ function render() {
     s += `<circle class="pt" id="pt-${i}" cx="${x}" cy="${y}" r="${rad}" fill="var(--series-${d + 1})" fill-opacity="${opacity}" stroke="var(--bg)" stroke-width="1.5"/>`;
     s += `<circle cx="${x}" cy="${y}" r="${Math.max(rad, 8)}" fill="transparent" data-i="${i}" style="cursor:pointer"/>`;
   });
+  s += `</g>`;
+  document.getElementById("zoom-reset").hidden = !isZoomed();
 
   const meeting = current.filter(r => r.median_ms <= target).length;
   document.getElementById("meets").innerHTML = `<b>${meeting}</b> of ${current.length} models fit`;
@@ -476,6 +513,69 @@ document.getElementById("presets").innerHTML = PRESETS.map(p =>
   `<button type="button" data-ms="${p.ms}">${p.label}<small>${fmtMs(p.ms)}</small></button>`).join("");
 document.querySelectorAll("#presets button").forEach(el =>
   el.addEventListener("click", () => { target = +el.dataset.ms; render(); }));
+
+// ---- zoom ----
+// Pointer position (in svg pixels) to log10 data coordinates, using the last render's geometry.
+function toLog(px, py) {
+  const { m, iw, ih, lx0, lx1, ly0, ly1 } = plot;
+  return [lx0 + (px - m.left) / iw * (lx1 - lx0), ly0 + (m.top + ih - py) / ih * (ly1 - ly0)];
+}
+function svgPoint(e) {
+  const box = svg.getBoundingClientRect();
+  return [e.clientX - box.left, e.clientY - box.top];
+}
+function resetZoom() {
+  view.x = [...xDomain];
+  view.y = [...yDomain];
+  render();
+}
+
+// Zoom both axes by `factor` around the data point (cx, cy) given in log10 units; factor < 1 zooms in.
+function zoomAt(cx, cy, factor) {
+  const scale = ([lo, hi], c) => [10 ** (c - (c - Math.log10(lo)) * factor), 10 ** (c + (Math.log10(hi) - c) * factor)];
+  view.x = clampRange(scale(view.x, cx), xDomain);
+  view.y = clampRange(scale(view.y, cy), yDomain);
+  render();
+}
+
+// Map-style: scroll (or pinch) zooms around the cursor, drag pans, double-click zooms in.
+const WHEEL_SPEED = 0.0015;
+const DOUBLE_CLICK_ZOOM = 0.5;
+const DRAG_THRESHOLD = 4;  // px; shorter movements are treated as clicks, so hover still works
+let pan = null;
+
+svg.addEventListener("wheel", e => {
+  e.preventDefault();
+  // Pinch arrives as a ctrl+wheel with small deltas; give it the same feel as a mouse wheel.
+  const delta = e.ctrlKey ? e.deltaY * 8 : e.deltaY;
+  zoomAt(...toLog(...svgPoint(e)), Math.exp(delta * WHEEL_SPEED));
+}, { passive: false });
+
+svg.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  pan = { start: svgPoint(e), x: [...view.x], y: [...view.y], moved: false };
+  svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener("pointermove", e => {
+  if (!pan) return;
+  const [px, py] = svgPoint(e);
+  const dx = px - pan.start[0], dy = py - pan.start[1];
+  if (!pan.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+  pan.moved = true;
+  svg.classList.add("panning");
+  tooltip.classList.remove("show");
+  const { iw, ih, lx0, lx1, ly0, ly1 } = plot;
+  const shiftX = -dx / iw * (lx1 - lx0), shiftY = dy / ih * (ly1 - ly0);
+  view.x = clampRange(pan.x.map(v => v * 10 ** shiftX), xDomain);
+  view.y = clampRange(pan.y.map(v => v * 10 ** shiftY), yDomain);
+  render();
+});
+const endPan = () => { pan = null; svg.classList.remove("panning"); };
+svg.addEventListener("pointerup", endPan);
+svg.addEventListener("pointercancel", endPan);
+
+svg.addEventListener("dblclick", e => zoomAt(...toLog(...svgPoint(e)), DOUBLE_CLICK_ZOOM));
+document.getElementById("zoom-reset").addEventListener("click", resetZoom);
 
 render();
 new ResizeObserver(render).observe(chart);
