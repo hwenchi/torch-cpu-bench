@@ -200,7 +200,7 @@
   </header>
 
   <section>
-    <div class="section-head"><h2>Inference time vs compute</h2></div>
+    <div class="section-head"><h2>Inference time per call (ms) vs compute (GFLOPs)</h2></div>
     <dl class="specs" id="hardware" hidden></dl>
     <div class="controls">
       <span class="control-label">CPU threads</span>
@@ -336,12 +336,12 @@ const fmtGflops = v => v >= 1 ? String(+v.toPrecision(3)) : String(+v.toPrecisio
 const fmtMs = v => v >= 1000 ? `${+(v / 1000).toPrecision(3)} s` : `${+v.toPrecision(3)} ms`;
 const fmtParams = v => v >= 1e9 ? `${(v / 1e9).toFixed(2)}B` : `${(v / 1e6).toFixed(1)}M`;
 
-// Circle radius is proportional to parameter count, with R_MAX at the largest model in the set.
-// Small models are clipped up to R_MIN so they stay visible and hoverable.
+// Circle radius is proportional to parameter count, reaching R_MAX at MAX_PARAMS. The scale is fixed so
+// circle sizes mean the same thing whatever subset of models a results file holds.
+// Small models are clipped up to R_MIN so they stay visible and hoverable; anything bigger than MAX_PARAMS stops at R_MAX.
 const R_MIN = 4, R_MAX = 64;
-const minParams = Math.min(...runs.map(r => r.params));
-const maxParams = Math.max(...runs.map(r => r.params));
-const radius = params => Math.max(R_MIN, R_MAX * params / maxParams);
+const MAX_PARAMS = 1e9;
+const radius = params => Math.min(R_MAX, Math.max(R_MIN, R_MAX * params / MAX_PARAMS));
 
 const swatch = domain =>
   `<svg width="10" height="10" viewBox="0 0 10 10" style="fill:var(--series-${domains.indexOf(domain) + 1});flex:none"><circle cx="5" cy="5" r="5"/></svg>`;
@@ -380,14 +380,13 @@ if (hw) {
   document.getElementById("hardware").hidden = false;
 }
 
-// Two reference sizes: the largest round values up to half the biggest model, skipping any drawn at the minimum.
-const sizeKey = [1e6, 5e6, 10e6, 50e6, 100e6, 500e6, 1e9, 5e9]
-  .filter(p => p <= maxParams / 2 && radius(p) > R_MIN)
-  .slice(-2);
+// Reference sizes; the last is MAX_PARAMS, where circles stop growing.
+const sizeKey = [100e6, 500e6, MAX_PARAMS];
 document.getElementById("legend").innerHTML = domains.map(d => `<span>${swatch(d)}${DOMAIN_LABELS[d] || d}</span>`).join("") +
   `<span>` + sizeKey.map(p => {
     const r = radius(p);
-    return `<svg width="${2 * r + 2}" height="${2 * r + 2}" style="flex:none"><circle cx="${r + 1}" cy="${r + 1}" r="${r}" fill="none" stroke="var(--text-muted)"/></svg>${p >= 1e9 ? `${p / 1e9}B` : `${p / 1e6}M`}`;
+    const label = p >= MAX_PARAMS ? `${p / 1e9}B+` : p >= 1e9 ? `${p / 1e9}B` : `${p / 1e6}M`;
+    return `<svg width="${2 * r + 2}" height="${2 * r + 2}" style="flex:none"><circle cx="${r + 1}" cy="${r + 1}" r="${r}" fill="none" stroke="var(--text-muted)"/></svg>${label}`;
   }).join(" ") + ` params</span>`;
 
 const svg = document.getElementById("svg");
