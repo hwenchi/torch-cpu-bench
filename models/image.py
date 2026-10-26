@@ -4,8 +4,8 @@ import torchvision.models.optical_flow as tvf
 import torchvision.models.segmentation as tvs
 from diffusers import AutoencoderKL, UNet2DConditionModel
 from transformers import (
-    DetrConfig, DetrForObjectDetection, Dinov2Config, Dinov2Model, DPTConfig, DPTForDepthEstimation, ResNetConfig,
-    SamVisionConfig, SamVisionModel,
+    CLIPVisionConfig, CLIPVisionModel, DetrConfig, DetrForObjectDetection, Dinov2Config, Dinov2Model, DPTConfig,
+    DPTForDepthEstimation, ResNetConfig, SamVisionConfig, SamVisionModel,
 )
 
 from .custom import DCGANGenerator, UNet
@@ -19,6 +19,18 @@ from .wrappers import Batched, DenoiseStep, FramePair, VaeDecode
 def dinov2(layers, hidden, heads):
     config = Dinov2Config(num_hidden_layers=layers, hidden_size=hidden, num_attention_heads=heads, image_size=IMAGENET_SIZE)
     return lambda: Dinov2Model(config)
+
+
+HEAD_DIM = 64
+
+
+def clip_image_encoder(layers, hidden, patch):
+    # CLIP's image tower only: the part that runs per image when embedding photos for search or zero-shot labels.
+    config = CLIPVisionConfig(
+        num_hidden_layers=layers, hidden_size=hidden, num_attention_heads=hidden // HEAD_DIM,
+        intermediate_size=hidden * 4, patch_size=patch, image_size=IMAGENET_SIZE,
+    )
+    return lambda: CLIPVisionModel(config)
 
 
 def detr():
@@ -84,6 +96,9 @@ MODELS = [
     {"name": "dinov2_small", "family": "DINOv2", "task": "Image embedding", "build": dinov2(layers=12, hidden=384, heads=6), "input": imagenet},
     {"name": "dinov2_base", "family": "DINOv2", "task": "Image embedding", "build": dinov2(layers=12, hidden=768, heads=12), "input": imagenet},
     {"name": "dinov2_large", "family": "DINOv2", "task": "Image embedding", "build": dinov2(layers=24, hidden=1024, heads=16), "input": imagenet},
+    {"name": "clip_vit_b_32", "family": "CLIP", "task": "Image embedding", "build": clip_image_encoder(layers=12, hidden=768, patch=32), "input": imagenet},
+    {"name": "clip_vit_b_16", "family": "CLIP", "task": "Image embedding", "build": clip_image_encoder(layers=12, hidden=768, patch=16), "input": imagenet},
+    {"name": "clip_vit_l_14", "family": "CLIP", "task": "Image embedding", "build": clip_image_encoder(layers=24, hidden=1024, patch=14), "input": imagenet},
 
     # Detection
     {"name": "ssdlite320_mobilenet_v3", "family": "SSD", "task": "Detection",

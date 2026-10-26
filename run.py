@@ -1,13 +1,24 @@
 import argparse
+import datetime
+import glob
 import json
 import os
+import platform
 import subprocess
 import sys
 import time
 
 THREADS = [1, 2, 4]
 WARMUP = 1
-REPEATS = 5
+REPEATS = 20
+
+# CPU flags that decide which fast paths the math libraries can use.
+VECTOR_FLAGS = [
+    "sse4_2", "avx", "avx2", "fma", "f16c",
+    "avx512f", "avx512bw", "avx512vl", "avx512_vnni", "avx512_bf16", "avx512_fp16",
+    "amx_tile", "amx_bf16", "amx_int8",
+    "asimd", "asimddp", "sve", "sve2", "bf16", "i8mm",
+]
 
 
 def worker(name, threads):
@@ -49,12 +60,73 @@ def worker(name, threads):
     }))
 
 
+def read(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def hardware():
+    import torch
+
+    cpuinfo = (read("/proc/cpuinfo") or "").splitlines()
+    meminfo = (read("/proc/meminfo") or "").splitlines()
+
+    def cpuinfo_field(key):
+        return next((l.split(":", 1)[1].strip() for l in cpuinfo if l.split(":", 1)[0].strip() == key), None)
+
+    flags = set((cpuinfo_field("flags") or cpuinfo_field("Features") or "").split())
+    mem_kb = next((int(l.split()[1]) for l in meminfo if l.startswith("MemTotal")), None)
+
+    # cgroup v2 limits: "max 100000" means unlimited, "400000 100000" means 4 CPUs.
+    cpu_max = read("/sys/fs/cgroup/cpu.max")
+    cpu_limit = None
+    if cpu_max and not cpu_max.startswith("max"):
+        quota, period = cpu_max.split()
+        cpu_limit = int(quota) / int(period)
+    mem_max = read("/sys/fs/cgroup/memory.max")
+    mem_limit_gb = round(int(mem_max) / 2**30, 1) if mem_max and mem_max != "max" else None
+
+    caches = {}
+    for index in sorted(glob.glob("/sys/devices/system/cpu/cpu0/cache/index*")):
+        level, kind, size = read(f"{index}/level"), read(f"{index}/type"), read(f"{index}/size")
+        if level and kind and size:
+            caches[f"L{level} {kind.lower()}"] = size
+
+    build = torch.__config__.show()
+    return {
+        "recorded_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "node": os.environ.get("NODE_NAME"),
+        "machine": platform.machine(),
+        "kernel": platform.release(),
+        # x86 reports a model name; ARM reports only a part number.
+        "cpu_model": cpuinfo_field("model name") or (cpuinfo_field("CPU part") and f"ARM part {cpuinfo_field('CPU part')}"),
+        "cpu_vendor": cpuinfo_field("vendor_id") or cpuinfo_field("CPU implementer"),
+        "cpu_mhz": cpuinfo_field("cpu MHz"),
+        "hypervisor": "hypervisor" in flags,
+        "vector_flags": [f for f in VECTOR_FLAGS if f in flags],
+        "caches": caches,
+        "cpus_visible": os.cpu_count(),
+        "cpus_affinity": len(os.sched_getaffinity(0)),
+        "cpu_limit": cpu_limit,
+        "mem_total_gb": round(mem_kb / 2**20, 1) if mem_kb else None,
+        "mem_limit_gb": mem_limit_gb,
+        "python": platform.python_version(),
+        "torch": torch.__version__,
+        "torch_cpu_capability": torch.backends.cpu.get_cpu_capability(),
+        "blas": build.split("BLAS_INFO=")[1].split(",")[0] if "BLAS_INFO=" in build else None,
+        "mkldnn": torch.backends.mkldnn.is_available(),
+    }
+
+
 def main():
     from models import MODELS
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="*", help="subset of model names (default: all)")
-    parser.add_argument("--timeout", type=float, default=600, help="seconds per run")
+    parser.add_argument("--timeout", type=float, default=1800, help="seconds per run")
     parser.add_argument("--out", default="out/results.json")
     args = parser.parse_args()
 
@@ -64,6 +136,7 @@ def main():
 
     selected = [m for m in MODELS if not args.models or m["name"] in args.models]
     results = {
+        "hardware": hardware(),
         "config": {"threads": THREADS, "warmup": WARMUP, "repeats": REPEATS, "timeout_s": args.timeout},
         "runs": [],
     }

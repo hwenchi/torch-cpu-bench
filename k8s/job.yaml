@@ -28,6 +28,11 @@ spec:
         - name: bench
           image: ghcr.io/hwenchi/torch-cpu-bench:latest
           command: ["python", "run.py"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           resources:
             requests:
               cpu: "4"

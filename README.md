@@ -1,0 +1,49 @@
+# torch-cpu-bench
+
+Times PyTorch inference on CPU for a suite of models at 1, 2 and 4 threads, and builds an HTML report from the results.
+
+## Run
+
+Locally, in Docker:
+
+```
+docker build -t torch-cpu-bench .
+docker run --rm --cpuset-cpus=0-3 -v "$PWD/out:/bench/out" torch-cpu-bench python run.py
+```
+
+`--models a b` runs a subset; `--timeout` sets seconds per run.
+
+On Kubernetes, using the image built by CI (`ghcr.io/hwenchi/torch-cpu-bench:latest`):
+
+```
+kubectl apply -f k8s/job.yaml
+kubectl -n torch-cpu-bench logs -f job/torch-cpu-bench
+```
+
+Results are written to the `torch-cpu-bench-results` volume. To copy them out:
+
+```
+kubectl -n torch-cpu-bench run fetch --image=busybox --restart=Never --overrides='{"spec":{"containers":[{"name":"fetch","image":"busybox","command":["sleep","300"],"volumeMounts":[{"name":"r","mountPath":"/out"}]}],"volumes":[{"name":"r","persistentVolumeClaim":{"claimName":"torch-cpu-bench-results"}}]}}'
+kubectl -n torch-cpu-bench cp fetch:/out/results.json out/results.json
+kubectl -n torch-cpu-bench delete pod fetch
+```
+
+## Report
+
+```
+uv run python report.py
+```
+
+Reads `out/results.json` and writes `out/report.html`.
+
+## Layout
+
+- `models/`: the suite, one module per input type
+- `run.py`: runs each model and thread count in a fresh process
+- `report.py`, `report_template.html`: the report
+- `k8s/job.yaml`: namespace, results volume and Job
+- `.github/workflows/image.yml`: builds and pushes the image on push to `main`
+
+## Adding a model
+
+Add an entry to `MODELS` in the matching `models/` module, with `name`, `family`, `task`, `build` and `input`.
