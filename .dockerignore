@@ -4,5 +4,6 @@ out
 .git
 .github
 k8s
+docs
 report.py
 report_template.html

@@ -94,6 +94,8 @@
   .intro h3 { margin: 28px 0 8px; }
   .intro p { color: var(--text-secondary); }
   .intro p + p { margin-top: 12px; }
+  .intro p b { color: var(--text-primary); font-weight: 600; }
+  code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.9em; }
   .specs { display: grid; grid-template-columns: max-content 1fr; gap: 2px 20px; margin: -8px 0 20px; font-size: 13px; }
   .specs dt { color: var(--text-muted); }
   .specs dd { margin: 0; color: var(--text-secondary); }
@@ -142,7 +144,17 @@
   .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
 
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: inherit; font-size: 13px; color: var(--text-primary); background: transparent;
+    border: 1px solid var(--line); border-radius: 999px; height: 28px; padding: 0 12px; cursor: pointer;
+  }
+  .chip[aria-pressed="false"] { color: var(--text-muted); border-style: dashed; }
+  .chip[aria-pressed="false"] svg { opacity: 0.25; }
+  #chart-query { width: 260px; max-width: 100%; }
+
   #chart { position: relative; }
+  .failures { margin: 16px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-secondary); }
   #chart svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; user-select: none; cursor: grab; }
   #chart svg.panning { cursor: grabbing; }
   .chart-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; margin-bottom: 4px; }
@@ -197,18 +209,22 @@
 <main>
   <header>
     <h1>You might not need a GPU</h1>
+    <p class="lead"><i>Benchmarking PyTorch inference on a few CPU cores</i></p>
     <div class="intro">
       <h3>Background</h3>
-      <p>GPUs are widely used for deep learning, particularly for large-scale training and computationally intensive inference. However, on shared clusters, they may be more expensive and less readily available than CPUs. Whether a GPU is worthwhile depends on the workload and the performance gains it provides relative to its cost. Two useful factors to consider are the computational demands of each model execution and the number of times the model must run. The first depends on factors such as model size and input size, as in large language models, diffusion models, high-resolution images, videos, and long documents. The second depends on how often the model runs, as in training, processing large datasets, serving high request volumes, and generating text or images token by token or through iterative denoising. When computational demands are modest and throughput requirements are low, CPU inference may be sufficient and more cost-effective. Modern CPUs offer multiple cores and, depending on the processor, vector instruction sets such as AVX2 and AVX-512. Optimized libraries such as oneDNN and oneMKL can further improve performance, making CPU-based inference a practical alternative for suitable workloads.</p>
+      <p>Modern x86 CPUs offer multiple cores and SIMD instruction sets such as AVX2 and, on supported processors, AVX-512, which accelerate numerical computations by processing multiple data elements per instruction. PyTorch takes advantage of these capabilities through optimized libraries and native CPU kernels. Matrix multiplications can use Intel oneMKL, while convolutions and other operations may use oneDNN or specialized PyTorch implementations. Many operations can also run in parallel across CPU cores using OpenMP.</p>
+      <p>PyTorch's <code>torch.compile</code>, powered by TorchInductor by default, can further improve performance by fusing operations, generating optimized C++ and OpenMP kernels, and exploiting CPU vector instructions to reduce overhead and memory traffic. Depending on the operation and backend, compiled inference can also use optimized external libraries.</p>
+      <p>These capabilities raise an important question: how well can modern deep-learning models run on just a few CPU cores? We investigate this by benchmarking <span class="scope"></span>, comparing standard PyTorch execution with <code>torch.compile</code> under limited CPU resources.</p>
       <h3>Experiment</h3>
-      <p id="experiment"></p>
+      <div id="experiment"></div>
       <h3>Limitations</h3>
-      <p>All timings come from a single node. Each measurement covers one forward pass, so the language models were timed processing a 128-token prompt rather than generating text token by token. All models ran in 32-bit precision without quantization, which tuned deployments often use to run faster. The GFLOPs figures count only matrix multiplications, convolutions and attention, so graph, recommendation, Mamba and detection models do more work than their GFLOPs suggest.</p>
+      <p><b>Scope.</b> We measured individual forward passes rather than end-to-end application workloads. Processing datasets, serving concurrent requests, and generating text or images involve repeated model executions and may have different performance characteristics. We evaluated language models using a 128-token prompt and diffusion models using a single denoising step rather than a complete generation. We did not evaluate training. Therefore, our results demonstrate the potential of CPU-based inference for certain workloads, rather than suggesting that CPUs can replace GPUs in every scenario.</p>
+      <p><b>Measurement and performance metrics.</b> We conducted all benchmarks on a single compute node, so results may differ across CPU architectures and cluster configurations. We evaluated models using 32-bit floating-point precision without quantization, which can improve inference speed and reduce memory requirements in deployed systems. Our reported GFLOPs count only matrix multiplications, convolutions, and attention operations. As a result, they underestimate the computational work of models that rely heavily on other operations, including graph neural networks, recommendation systems, Mamba models, and object detection architectures.</p>
     </div>
   </header>
 
   <section>
-    <div class="section-head"><h2>Inference time per call (ms) vs compute (GFLOPs)</h2></div>
+    <div class="section-head"><h2>Latency (ms) vs compute (GFLOPs)</h2></div>
     <dl class="specs" id="hardware" hidden></dl>
     <div class="controls">
       <span class="control-label">CPU threads</span>
@@ -231,6 +247,12 @@
         <div class="segmented" id="presets"></div>
         <span class="meets" id="meets"></span>
       </div>
+      <span class="control-label">Inputs</span>
+      <div class="control" id="chart-domains"></div>
+      <span class="control-label">Search</span>
+      <div class="control">
+        <input class="field" type="search" id="chart-query" placeholder="Search model, task or family" aria-label="Search the chart by model, task or family">
+      </div>
     </div>
     <div class="legend" id="legend"></div>
     <div class="chart-bar">
@@ -238,6 +260,7 @@
       <button class="reset" type="button" id="zoom-reset" hidden>Reset zoom</button>
     </div>
     <div id="chart"><svg id="svg"></svg><div id="tooltip"></div></div>
+    <ul class="failures" id="failures" hidden></ul>
   </section>
 
   <section>
@@ -263,10 +286,10 @@ const threadCounts = [...new Set(runs.map(r => r.threads))].sort((a, b) => a - b
 let threads = threadCounts[threadCounts.length - 1];
 
 const PRESETS = [
-  { label: "Video 30 fps", ms: 33 },
-  { label: "Feels instant", ms: 100 },
+  { label: "Real-time (30 FPS)", ms: 33 },
+  { label: "Near-instant", ms: 100 },
   { label: "Interactive", ms: 1000 },
-  { label: "Holds attention", ms: 10000 },
+  { label: "Long-running", ms: 10000 },
 ];
 let target = 1000;
 
@@ -339,13 +362,16 @@ const maxThreads = threadCounts[threadCounts.length - 1];
 
 const tasks = [...new Set(runs.map(r => r.task))];
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const listed = items => items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : `${items[0]}`;
-document.getElementById("experiment").textContent =
-  `This report benchmarks ${plural(new Set(runs.map(r => r.model)).size, "model")} across ${plural(tasks.length, "task")} on CPU. ` +
-  `Each model was timed at ${listed(threadCounts)} threads` +
-  `${hasCompiled ? ", both as plain PyTorch and after compiling it with torch.compile" : ""}. ` +
-  `The benchmark ran as a Kubernetes Job limited to ${maxThreads} CPUs. Every model received one input at a time and used random weights. ` +
-  `Each measurement ran in a fresh process, with ${DATA.config.warmup} warm-up call followed by ${DATA.config.repeats} timed calls, and the reported time is the median of those calls.`;
+const listed = items => items.length > 2 ? `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`
+  : items.join(" and ");
+const scope = `${plural(new Set(runs.map(r => r.model)).size, "model")} across ${plural(tasks.length, "task")}`;
+document.querySelector(".scope").textContent = scope;
+document.getElementById("experiment").innerHTML =
+  `<p>We benchmarked ${scope.replace("across", "spanning")}, using ${listed(threadCounts)} CPU threads.` +
+  `${hasCompiled ? " For each thread count, we compared standard PyTorch execution with <code>torch.compile</code>." : ""}</p>` +
+  `<p>All experiments ran in a Kubernetes Job limited to ${maxThreads} CPUs. ` +
+  `We used randomly initialized model weights and a single input per benchmark, with each run starting in a fresh process. ` +
+  `We measured the latency of ${DATA.config.repeats} forward passes after ${DATA.config.warmup === 1 ? "one warm-up pass" : `${DATA.config.warmup} warm-up passes`} and reported the median.</p>`;
 
 const hw = DATA.hardware;
 if (hw) {
@@ -369,12 +395,17 @@ if (hw) {
 
 // Reference sizes; the last is MAX_PARAMS, where circles stop growing.
 const sizeKey = [100e6, 500e6, MAX_PARAMS];
-document.getElementById("legend").innerHTML = domains.map(d => `<span>${swatch(d)}${DOMAIN_LABELS[d] || d}</span>`).join("") +
-  `<span>` + sizeKey.map(p => {
+document.getElementById("legend").innerHTML = `<span>` + sizeKey.map(p => {
     const r = radius(p);
     const label = p >= MAX_PARAMS ? `${p / 1e9}B+` : p >= 1e9 ? `${p / 1e9}B` : `${p / 1e6}M`;
     return `<svg width="${2 * r + 2}" height="${2 * r + 2}" style="flex:none"><circle cx="${r + 1}" cy="${r + 1}" r="${r}" fill="none" stroke="var(--text-muted)"/></svg>${label}`;
   }).join(" ") + ` params</span>`;
+
+// Chart filters: input types shown (the buttons double as the color legend) and a text search.
+const matchesQuery = (r, q) => !q || [r.model, r.family, r.task].some(s => s.toLowerCase().includes(q));
+const shownDomains = new Set(domains);
+const chartQuery = document.getElementById("chart-query");
+const inChart = r => shownDomains.has(r.domain) && matchesQuery(r, chartQuery.value.trim().toLowerCase());
 
 const svg = document.getElementById("svg");
 const tooltip = document.getElementById("tooltip");
@@ -402,7 +433,7 @@ function render() {
          `<text x="${m.left - 10}" y="${sy(v) + 4}" text-anchor="end">${fmtMs(v)}</text></g>`;
   s += `<line x1="${m.left}" x2="${m.left + iw}" y1="${m.top + ih}" y2="${m.top + ih}" stroke="var(--axis)"/>`;
   s += `<text class="axis-title" x="${m.left + iw / 2}" y="${H - 6}" text-anchor="middle">GFLOPs per inference (log)</text>`;
-  s += `<text class="axis-title" transform="translate(12 ${m.top + ih / 2}) rotate(-90)" text-anchor="middle">Time per inference (log)</text>`;
+  s += `<text class="axis-title" transform="translate(12 ${m.top + ih / 2}) rotate(-90)" text-anchor="middle">Latency (log)</text>`;
 
   // Everything data-driven is clipped to the plot so it can't spill past the axes when zoomed in.
   s += `<g clip-path="url(#plot-area)">`;
@@ -412,7 +443,7 @@ function render() {
   s += `<line x1="${m.left}" x2="${m.left + iw}" y1="${ty}" y2="${ty}" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
 
   // Largest first so small circles sit on top and stay hoverable.
-  const atThreads = runs.filter(r => r.threads === threads);
+  const atThreads = runs.filter(r => r.threads === threads && inChart(r));
   const current = atThreads.filter(r => timeOf(r) != null).sort((a, b) => b.params - a.params);
   current.forEach((r, i) => {
     const d = domains.indexOf(r.domain);
@@ -424,7 +455,7 @@ function render() {
   s += `</g>`;
   // Drawn after the points so circles can't cover it.
   if (ty >= m.top && ty <= m.top + ih)
-    s += `<text class="target-label" x="${m.left + iw - 4}" y="${ty - m.top < 20 ? ty + 15 : ty - 6}" text-anchor="end">${fmtMs(target)} budget${preset ? " · " + preset.label.toLowerCase() : ""}</text>`;
+    s += `<text class="target-label" x="${m.left + iw - 4}" y="${ty - m.top < 20 ? ty + 15 : ty - 6}" text-anchor="end">${fmtMs(target)} budget${preset ? " · " + preset.label : ""}</text>`;
   document.getElementById("zoom-reset").hidden = !isZoomed();
 
   const meeting = current.filter(r => timeOf(r) <= target).length;
@@ -443,19 +474,19 @@ function render() {
       document.getElementById(`pt-${el.dataset.i}`).classList.add("on");
       const compiledRows = !hasCompiled ? ""
         : r.compiled_median_ms != null
-          ? `<dt>With torch.compile</dt><dd>${fmtMs(r.compiled_median_ms)} · ${speedup(r).toFixed(2)}× ${speedup(r) >= 1 ? "faster" : "slower"}</dd>` +
-            `<dt>Compile time</dt><dd>${r.compile_s.toFixed(1)} s, once</dd>`
+          ? `<dt>With torch.compile</dt><dd>${fmtMs(r.compiled_median_ms)}</dd>` +
+            `<dt>Speedup</dt><dd>${speedup(r).toFixed(2)}×</dd>` +
+            `<dt>Compile time</dt><dd>${r.compile_s.toFixed(1)} s</dd>`
           : `<dt>With torch.compile</dt><dd>did not compile</dd>`;
       tooltip.innerHTML =
         `<div class="name">${r.model}</div>` +
         `<div class="sub">${r.task} · ${r.family}</div>` +
-        `<div class="section">Time per call at ${r.threads} thread${r.threads > 1 ? "s" : ""}</div><dl>` +
-        `<dt>Plain PyTorch</dt><dd>${fmtMs(r.median_ms)}</dd>` + compiledRows + `</dl>` +
         `<div class="section">Model</div><dl>` +
-        `<dt>Input</dt><dd>${r.input || r.input_shape.join("×")}</dd>` +
         `<dt>Parameters</dt><dd>${fmtParams(r.params)}</dd>` +
         `<dt>Compute per call</dt><dd>${fmtGflops(r.gflops)} GFLOPs</dd>` +
-        `<dt>Data type</dt><dd>${DOMAIN_LABELS[r.domain] || r.domain}</dd></dl>`;
+        `<dt>Input</dt><dd>${r.input || r.input_shape.join("×")}</dd></dl>` +
+        `<div class="section">Latency (at ${plural(r.threads, "CPU thread")})</div><dl>` +
+        `<dt>Plain PyTorch</dt><dd>${fmtMs(r.median_ms)}</dd>` + compiledRows + `</dl>`;
       tooltip.classList.add("show");
       const cx = +el.getAttribute("cx"), cy = +el.getAttribute("cy");
       const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -468,7 +499,21 @@ function render() {
     });
   });
 
+  renderFailures();
   renderTable();
+}
+
+// Models missing from the current view: runs that produced no time, and in compiled mode, models torch.compile could not compile.
+function renderFailures() {
+  const failed = DATA.runs.filter(r => r.threads === threads && r.status !== "ok" && inChart(r));
+  const notCompiled = mode === "eager" ? [] : runs.filter(r => r.threads === threads && r.compile_error && inChart(r)).map(r => r.model);
+  const items = [
+    ...failed.map(r => `${r.model}: ${r.status === "timeout" ? `timed out after ${DATA.config.timeout_s} s` : `failed (${r.error})`}.`),
+    ...(notCompiled.length ? [`torch.compile failed for ${plural(notCompiled.length, "model")}: ${listed(notCompiled)}.`] : []),
+  ];
+  const list = document.getElementById("failures");
+  list.innerHTML = items.map(f => `<li>${f}</li>`).join("");
+  list.hidden = !items.length;
 }
 
 let sortKey = "time", sortDir = 1;
@@ -480,16 +525,22 @@ function renderTable() {
   const columns = [
     { key: "model", label: "Model", get: r => r.model },
     { key: "task", label: "Task", get: r => r.task },
-    { key: "params", label: "Params", get: r => r.params },
-    { key: "gflops", label: "GFLOPs", get: r => r.gflops },
-    { key: "time", label: `${mode === "eager" ? "Eager" : "Compiled"} · ${threads} thr`, get: r => timeOf(r) },
-    ...(hasCompiled ? [{ key: "speedup", label: "Compile speedup", get: r => speedup(r) }] : []),
+    { key: "params", label: "Parameters", get: r => r.params },
+    { key: "gflops", label: "GFLOPs per call", get: r => r.gflops },
+    { key: "time", label: "Latency", get: r => timeOf(r) },
   ];
   if (!columns.some(c => c.key === sortKey)) sortKey = "time";
   const q = tableQuery.value.trim().toLowerCase();
-  const all = runs.filter(r => r.threads === threads && timeOf(r) != null);
+  // Every model appears, including runs that failed or didn't compile. A failed run has no size figures of its own,
+  // so it borrows them from the same model at another thread count.
+  const all = DATA.runs.filter(r => r.threads === threads)
+    .map(r => {
+      if (r.status === "ok") return r;
+      const other = runs.find(o => o.model === r.model);
+      return { ...r, params: other?.params, gflops: other?.gflops };
+    });
   const rows = all.filter(r =>
-    (!q || [r.model, r.family, r.task].some(s => s.toLowerCase().includes(q))) &&
+    matchesQuery(r, q) &&
     (!tableDomain.value || r.domain === tableDomain.value) &&
     (!tableFits.checked || timeOf(r) <= target));
   const get = columns.find(c => c.key === sortKey).get;
@@ -505,8 +556,8 @@ function renderTable() {
       `<th aria-sort="${c.key === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none"}">` +
       `<button type="button" data-key="${c.key}" class="${c.key === sortKey ? "on" : ""}">${c.label}<span class="arrow">${c.key === sortKey ? (sortDir > 0 ? "↑" : "↓") : "↕"}</span></button></th>`
     ).join("") + `</tr></thead><tbody>` +
-    (rows.length ? rows.map(r => `<tr class="${timeOf(r) <= target ? "" : "miss"}"><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.task}</td><td>${fmtParams(r.params)}</td><td>${fmtGflops(r.gflops)}</td><td>${fmtMs(timeOf(r))}</td>` +
-        (hasCompiled ? `<td>${speedup(r) != null ? `${speedup(r).toFixed(2)}×` : "failed"}</td>` : "") + `</tr>`).join("")
+    (rows.length ? rows.map(r => `<tr class="${timeOf(r) <= target ? "" : "miss"}"><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.task}</td><td>${r.params != null ? fmtParams(r.params) : "–"}</td><td>${r.gflops != null ? fmtGflops(r.gflops) : "–"}</td>` +
+        `<td>${r.status === "timeout" ? "timed out" : r.status !== "ok" ? "failed" : timeOf(r) != null ? fmtMs(timeOf(r)) : "did not compile"}</td></tr>`).join("")
       : `<tr><td colspan="${columns.length}" class="empty">No models match these filters.</td></tr>`) +
     `</tbody>`;
 }
@@ -536,6 +587,22 @@ document.getElementById("presets").innerHTML = PRESETS.map(p =>
   `<button type="button" data-ms="${p.ms}">${p.label}<small>${fmtMs(p.ms)}</small></button>`).join("");
 document.querySelectorAll("#presets button").forEach(el =>
   el.addEventListener("click", () => { target = +el.dataset.ms; render(); }));
+
+const domainButtons = document.getElementById("chart-domains");
+domainButtons.innerHTML = domains.map(d =>
+  `<button type="button" class="chip" data-domain="${d}" aria-pressed="true">${swatch(d)}${DOMAIN_LABELS[d] || d}</button>`).join("");
+domainButtons.querySelectorAll("button").forEach(el =>
+  el.addEventListener("click", () => {
+    // With everything shown, a click isolates that input; after that, clicks toggle. Turning off the last one shows all again.
+    const d = el.dataset.domain;
+    if (shownDomains.size === domains.length) { shownDomains.clear(); shownDomains.add(d); }
+    else if (!shownDomains.has(d)) shownDomains.add(d);
+    else if (shownDomains.size === 1) domains.forEach(x => shownDomains.add(x));
+    else shownDomains.delete(d);
+    domainButtons.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", shownDomains.has(b.dataset.domain)));
+    render();
+  }));
+chartQuery.addEventListener("input", render);
 
 if (hasCompiled) {
   document.getElementById("mode-label").hidden = false;
