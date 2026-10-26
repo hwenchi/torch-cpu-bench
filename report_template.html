@@ -208,6 +208,13 @@
         </div>
         <span class="slider-value" id="thread-value"></span>
       </div>
+      <span class="control-label" id="mode-label" hidden>Execution</span>
+      <div class="control" id="mode-control" hidden>
+        <div class="segmented" id="mode">
+          <button type="button" data-mode="eager">Eager</button>
+          <button type="button" data-mode="compiled">torch.compile</button>
+        </div>
+      </div>
       <span class="control-label">Time budget</span>
       <div class="control">
         <div class="segmented" id="presets"></div>
@@ -271,9 +278,15 @@ const PRESETS = [
 ];
 let target = 1000;
 
+// Eager is plain PyTorch; compiled is the same model through torch.compile, where compiling succeeded.
+let mode = "eager";
+const timeOf = r => mode === "eager" ? r.median_ms : r.compiled_median_ms;
+const hasCompiled = runs.some(r => r.compiled_median_ms != null);
+const speedup = r => r.compiled_median_ms != null ? r.median_ms / r.compiled_median_ms : null;
+
 // Axes are fixed across all thread counts so points move, not the scale. Presets are kept in range too.
 const xs = runs.map(r => r.gflops);
-const ys = [...runs.map(r => r.median_ms), ...PRESETS.map(p => p.ms)];
+const ys = [...runs.map(r => r.median_ms), ...runs.filter(r => r.compiled_median_ms != null).map(r => r.compiled_median_ms), ...PRESETS.map(p => p.ms)];
 const NICE = [1, 2, 5];
 function niceLo(v) {
   const e = Math.floor(Math.log10(v));
@@ -406,19 +419,23 @@ function render() {
     s += `<text class="target-label" x="${m.left + iw - 4}" y="${ty - m.top < 20 ? ty + 15 : ty - 6}" text-anchor="end">${fmtMs(target)} budget${preset ? " · " + preset.label.toLowerCase() : ""}</text>`;
 
   // Largest first so small circles sit on top and stay hoverable.
-  const current = runs.filter(r => r.threads === threads).sort((a, b) => b.params - a.params);
+  const atThreads = runs.filter(r => r.threads === threads);
+  const current = atThreads.filter(r => timeOf(r) != null).sort((a, b) => b.params - a.params);
   current.forEach((r, i) => {
     const d = domains.indexOf(r.domain);
-    const x = sx(r.gflops), y = sy(r.median_ms), rad = radius(r.params);
-    const opacity = r.median_ms <= target ? 0.8 : 0.2;
+    const x = sx(r.gflops), y = sy(timeOf(r)), rad = radius(r.params);
+    const opacity = timeOf(r) <= target ? 0.8 : 0.2;
     s += `<circle class="pt" id="pt-${i}" cx="${x}" cy="${y}" r="${rad}" fill="var(--series-${d + 1})" fill-opacity="${opacity}" stroke="var(--bg)" stroke-width="1.5"/>`;
     s += `<circle cx="${x}" cy="${y}" r="${Math.max(rad, 8)}" fill="transparent" data-i="${i}" style="cursor:pointer"/>`;
   });
   s += `</g>`;
   document.getElementById("zoom-reset").hidden = !isZoomed();
 
-  const meeting = current.filter(r => r.median_ms <= target).length;
-  document.getElementById("meets").innerHTML = `<b>${meeting}</b> of ${current.length} models fit`;
+  const meeting = current.filter(r => timeOf(r) <= target).length;
+  const uncompiled = atThreads.length - current.length;
+  document.getElementById("meets").innerHTML = `<b>${meeting}</b> of ${current.length} models fit` +
+    (uncompiled ? ` · ${uncompiled} didn't compile` : "");
+  document.querySelectorAll("#mode button").forEach(el => el.classList.toggle("on", el.dataset.mode === mode));
   document.querySelectorAll("#presets button").forEach(el => el.classList.toggle("on", +el.dataset.ms === target));
 
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -429,7 +446,10 @@ function render() {
       const r = current[+el.dataset.i];
       document.getElementById(`pt-${el.dataset.i}`).classList.add("on");
       tooltip.innerHTML = `<div class="name">${r.model}</div><dl>` +
-        `<dt>Time</dt><dd>${fmtMs(r.median_ms)}</dd>` +
+        `<dt>Eager</dt><dd>${fmtMs(r.median_ms)}</dd>` +
+        (hasCompiled ? (r.compiled_median_ms != null
+          ? `<dt>Compiled</dt><dd>${fmtMs(r.compiled_median_ms)} (${speedup(r).toFixed(2)}×)</dd><dt>Compile time</dt><dd>${r.compile_s.toFixed(1)} s</dd>`
+          : `<dt>Compiled</dt><dd>failed</dd>`) : "") +
         `<dt>Threads</dt><dd>${r.threads}</dd>` +
         `<dt>GFLOPs</dt><dd>${fmtGflops(r.gflops)}</dd>` +
         `<dt>Params</dt><dd>${fmtParams(r.params)}</dd>` +
@@ -463,17 +483,20 @@ function renderTable() {
     { key: "task", label: "Task", get: r => r.task },
     { key: "params", label: "Params", get: r => r.params },
     { key: "gflops", label: "GFLOPs", get: r => r.gflops },
-    { key: "time", label: `Time · ${threads} thr`, get: r => r.median_ms },
+    { key: "time", label: `${mode === "eager" ? "Eager" : "Compiled"} · ${threads} thr`, get: r => timeOf(r) },
+    ...(hasCompiled ? [{ key: "speedup", label: "Compile speedup", get: r => speedup(r) }] : []),
   ];
+  if (!columns.some(c => c.key === sortKey)) sortKey = "time";
   const q = tableQuery.value.trim().toLowerCase();
-  const all = runs.filter(r => r.threads === threads);
+  const all = runs.filter(r => r.threads === threads && timeOf(r) != null);
   const rows = all.filter(r =>
     (!q || [r.model, r.family, r.task].some(s => s.toLowerCase().includes(q))) &&
     (!tableDomain.value || r.domain === tableDomain.value) &&
-    (!tableFits.checked || r.median_ms <= target));
+    (!tableFits.checked || timeOf(r) <= target));
   const get = columns.find(c => c.key === sortKey).get;
   rows.sort((a, b) => {
     const va = get(a), vb = get(b);
+    if (va == null || vb == null) return (va == null) - (vb == null);  // missing values last
     return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * sortDir;
   });
 
@@ -483,8 +506,9 @@ function renderTable() {
       `<th aria-sort="${c.key === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none"}">` +
       `<button type="button" data-key="${c.key}" class="${c.key === sortKey ? "on" : ""}">${c.label}<span class="arrow">${c.key === sortKey ? (sortDir > 0 ? "↑" : "↓") : "↕"}</span></button></th>`
     ).join("") + `</tr></thead><tbody>` +
-    (rows.length ? rows.map(r => `<tr class="${r.median_ms <= target ? "" : "miss"}"><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.task}</td><td>${fmtParams(r.params)}</td><td>${fmtGflops(r.gflops)}</td><td>${fmtMs(r.median_ms)}</td></tr>`).join("")
-      : `<tr><td colspan="5" class="empty">No models match these filters.</td></tr>`) +
+    (rows.length ? rows.map(r => `<tr class="${timeOf(r) <= target ? "" : "miss"}"><td class="model">${r.model}</td><td class="family">${swatch(r.domain)}${r.task}</td><td>${fmtParams(r.params)}</td><td>${fmtGflops(r.gflops)}</td><td>${fmtMs(timeOf(r))}</td>` +
+        (hasCompiled ? `<td>${speedup(r) != null ? `${speedup(r).toFixed(2)}×` : "failed"}</td>` : "") + `</tr>`).join("")
+      : `<tr><td colspan="${columns.length}" class="empty">No models match these filters.</td></tr>`) +
     `</tbody>`;
 }
 
@@ -513,6 +537,13 @@ document.getElementById("presets").innerHTML = PRESETS.map(p =>
   `<button type="button" data-ms="${p.ms}">${p.label}<small>${fmtMs(p.ms)}</small></button>`).join("");
 document.querySelectorAll("#presets button").forEach(el =>
   el.addEventListener("click", () => { target = +el.dataset.ms; render(); }));
+
+if (hasCompiled) {
+  document.getElementById("mode-label").hidden = false;
+  document.getElementById("mode-control").hidden = false;
+  document.querySelectorAll("#mode button").forEach(el =>
+    el.addEventListener("click", () => { mode = el.dataset.mode; render(); }));
+}
 
 // ---- zoom ----
 // Pointer position (in svg pixels) to log10 data coordinates, using the last render's geometry.

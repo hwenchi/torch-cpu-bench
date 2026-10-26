@@ -49,7 +49,7 @@ def worker(name, threads):
         with FlopCounterMode(display=False) as counter:
             model(x)
 
-    print(json.dumps({
+    result = {
         "mean_ms": sum(times_ms) / len(times_ms),
         "median_ms": sorted(times_ms)[len(times_ms) // 2],
         "times_ms": times_ms,
@@ -57,7 +57,29 @@ def worker(name, threads):
         "gflops": counter.get_total_flops() / 1e9,
         "input_shape": list(x.shape),
         "torch_threads": torch.get_num_threads(),
-    }))
+    }
+
+    # Same model through torch.compile. The first call compiles; a failure only drops the compiled numbers.
+    try:
+        torch._inductor.config.freezing = True
+        compiled = torch.compile(model)
+        compiled_ms = []
+        with torch.no_grad():
+            start = time.perf_counter()
+            compiled(x)
+            result["compile_s"] = time.perf_counter() - start
+            for _ in range(WARMUP):
+                compiled(x)
+            for _ in range(REPEATS):
+                start = time.perf_counter()
+                compiled(x)
+                compiled_ms.append((time.perf_counter() - start) * 1000)
+        result["compiled_median_ms"] = sorted(compiled_ms)[len(compiled_ms) // 2]
+        result["compiled_times_ms"] = compiled_ms
+    except Exception as e:
+        result["compile_error"] = f"{type(e).__name__}: {str(e).splitlines()[0][:200] if str(e) else ''}"
+
+    print(json.dumps(result))
 
 
 def read(path):
@@ -148,7 +170,8 @@ def main():
         for t in THREADS:
             i += 1
             row = {"model": m["name"], "family": m["family"], "domain": m["domain"], "task": m["task"], "threads": t}
-            env = dict(os.environ, OMP_NUM_THREADS=str(t), OPENBLAS_NUM_THREADS=str(t))
+            # Caches off so every compile time is a cold compile, not a reuse of an earlier thread count's work.
+            env = dict(os.environ, OMP_NUM_THREADS=str(t), OPENBLAS_NUM_THREADS=str(t), TORCHINDUCTOR_FORCE_DISABLE_CACHES="1")
             start = time.perf_counter()
             try:
                 proc = subprocess.run(
@@ -168,7 +191,12 @@ def main():
             results["runs"].append(row)
             with open(args.out, "w") as f:
                 json.dump(results, f, indent=2)
-            detail = f"{row['mean_ms']:9.1f} ms" if row["status"] == "ok" else f"{row['status']}: {row['error']}"
+            if row["status"] != "ok":
+                detail = f"{row['status']}: {row['error']}"
+            elif "compiled_median_ms" in row:
+                detail = f"{row['median_ms']:9.1f} ms  compiled {row['compiled_median_ms']:9.1f} ms"
+            else:
+                detail = f"{row['median_ms']:9.1f} ms  compile failed: {row['compile_error']}"
             print(f"[{i}/{total}] {m['name']:16s} threads={t}  {detail}", flush=True)
 
 
