@@ -163,7 +163,9 @@
     padding: 10px 12px; font-size: 12px; white-space: nowrap; box-shadow: var(--shadow);
   }
   #tooltip.show { opacity: 1; }
-  #tooltip .name { font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  #tooltip .name { font-weight: 600; font-size: 13px; }
+  #tooltip .sub { color: var(--text-secondary); margin-bottom: 4px; }
+  #tooltip .section { margin: 8px 0 3px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 11px; font-weight: 600; color: var(--text-muted); }
   #tooltip dl { display: grid; grid-template-columns: auto auto; gap: 2px 16px; margin: 0; }
   #tooltip dt { color: var(--text-muted); }
   #tooltip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
@@ -453,18 +455,21 @@ function render() {
     el.addEventListener("pointerenter", () => {
       const r = current[+el.dataset.i];
       document.getElementById(`pt-${el.dataset.i}`).classList.add("on");
-      tooltip.innerHTML = `<div class="name">${r.model}</div><dl>` +
-        `<dt>Eager</dt><dd>${fmtMs(r.median_ms)}</dd>` +
-        (hasCompiled ? (r.compiled_median_ms != null
-          ? `<dt>Compiled</dt><dd>${fmtMs(r.compiled_median_ms)} (${speedup(r).toFixed(2)}×)</dd><dt>Compile time</dt><dd>${r.compile_s.toFixed(1)} s</dd>`
-          : `<dt>Compiled</dt><dd>failed</dd>`) : "") +
-        `<dt>Threads</dt><dd>${r.threads}</dd>` +
-        `<dt>GFLOPs</dt><dd>${fmtGflops(r.gflops)}</dd>` +
-        `<dt>Params</dt><dd>${fmtParams(r.params)}</dd>` +
-        `<dt>Shape</dt><dd>${r.input_shape.join("×")}</dd>` +
-        `<dt>Task</dt><dd>${r.task}</dd>` +
-        `<dt>Family</dt><dd>${r.family}</dd>` +
-        `<dt>Input</dt><dd>${DOMAIN_LABELS[r.domain] || r.domain}</dd></dl>`;
+      const compiledRows = !hasCompiled ? ""
+        : r.compiled_median_ms != null
+          ? `<dt>With torch.compile</dt><dd>${fmtMs(r.compiled_median_ms)} · ${speedup(r).toFixed(2)}× ${speedup(r) >= 1 ? "faster" : "slower"}</dd>` +
+            `<dt>Compile time</dt><dd>${r.compile_s.toFixed(1)} s, once</dd>`
+          : `<dt>With torch.compile</dt><dd>did not compile</dd>`;
+      tooltip.innerHTML =
+        `<div class="name">${r.model}</div>` +
+        `<div class="sub">${r.task} · ${r.family}</div>` +
+        `<div class="section">Time per call at ${r.threads} thread${r.threads > 1 ? "s" : ""}</div><dl>` +
+        `<dt>Plain PyTorch</dt><dd>${fmtMs(r.median_ms)}</dd>` + compiledRows + `</dl>` +
+        `<div class="section">Model</div><dl>` +
+        `<dt>Input</dt><dd>${r.input || r.input_shape.join("×")}</dd>` +
+        `<dt>Parameters</dt><dd>${fmtParams(r.params)}</dd>` +
+        `<dt>Compute per call</dt><dd>${fmtGflops(r.gflops)} GFLOPs</dd>` +
+        `<dt>Data type</dt><dd>${DOMAIN_LABELS[r.domain] || r.domain}</dd></dl>`;
       tooltip.classList.add("show");
       const cx = +el.getAttribute("cx"), cy = +el.getAttribute("cy");
       const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;

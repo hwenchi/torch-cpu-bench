@@ -49,7 +49,7 @@ def encodec():
     return build
 
 
-whisper_input = features(WHISPER_MELS, WHISPER_FRAMES)
+whisper_input = features(WHISPER_MELS, WHISPER_FRAMES, label="30 s of audio as a spectrogram")
 one_second = waveform(1)
 
 MODELS = [
@@ -59,7 +59,7 @@ MODELS = [
     {"name": "wav2vec2_base", "family": "Wav2Vec2", "task": "Speech recognition", "build": wav2vec2(layers=12, hidden=768), "input": one_second},
     {"name": "wav2vec2_large", "family": "Wav2Vec2", "task": "Speech recognition", "build": wav2vec2(layers=24, hidden=1024, large=True), "input": one_second},
     {"name": "ast_base", "family": "AST", "task": "Audio classification",
-     "build": lambda: ASTModel(ASTConfig(max_length=AST_FRAMES, num_mel_bins=AST_MELS)), "input": features(AST_FRAMES, AST_MELS)},
+     "build": lambda: ASTModel(ASTConfig(max_length=AST_FRAMES, num_mel_bins=AST_MELS)), "input": features(AST_FRAMES, AST_MELS, label="10 s of audio as a spectrogram")},
     {"name": "encodec_24khz", "family": "EnCodec", "task": "Audio codec",
      "build": encodec(), "input": waveform(1, rate=CODEC_SAMPLE_RATE, channels=1)},
 ]

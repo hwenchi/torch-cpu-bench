@@ -4,7 +4,7 @@ from transformers import (
 )
 
 from .inputs import (
-    BERT_VOCAB, GPT2_VOCAB, LLAMA3_VOCAB, MAMBA_VOCAB, MODERNBERT_VOCAB, SEQ_LEN, SMOLLM_VOCAB, T5_VOCAB, tokens,
+    BERT_VOCAB, GPT2_VOCAB, LLAMA3_VOCAB, MAMBA_VOCAB, MODERNBERT_VOCAB, SEQ_LEN, SMOLLM_VOCAB, T5_VOCAB, described, tokens,
 )
 from .wrappers import FirstDecoderStep
 
@@ -49,6 +49,7 @@ def mamba(layers, hidden):
 
 
 bert_tokens = tokens(SEQ_LEN, BERT_VOCAB)
+t5_prompt = described(tokens(SEQ_LEN, T5_VOCAB), f"{SEQ_LEN}-token prompt, then 1 output token")
 
 MODELS = [
     # Encoders
@@ -65,8 +66,8 @@ MODELS = [
      "build": lambda: ModernBertModel(ModernBertConfig()), "input": tokens(SEQ_LEN, MODERNBERT_VOCAB)},
 
     # Encoder-decoder
-    {"name": "t5_small", "family": "T5", "task": "Text-to-text", "build": t5(layers=6, hidden=512, heads=8, ff=2048), "input": tokens(SEQ_LEN, T5_VOCAB)},
-    {"name": "t5_base", "family": "T5", "task": "Text-to-text", "build": t5(layers=12, hidden=768, heads=12, ff=3072), "input": tokens(SEQ_LEN, T5_VOCAB)},
+    {"name": "t5_small", "family": "T5", "task": "Text-to-text", "build": t5(layers=6, hidden=512, heads=8, ff=2048), "input": t5_prompt},
+    {"name": "t5_base", "family": "T5", "task": "Text-to-text", "build": t5(layers=12, hidden=768, heads=12, ff=3072), "input": t5_prompt},
 
     # Decoders
     {"name": "gpt2", "family": "GPT-2", "task": "Text generation", "build": gpt2(layers=12, hidden=768), "input": tokens(SEQ_LEN, GPT2_VOCAB)},

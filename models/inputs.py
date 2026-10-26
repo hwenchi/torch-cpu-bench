@@ -54,33 +54,45 @@ CRITEO_DENSE = 13
 CRITEO_SPARSE = 26
 
 
-def image(height, width=None, channels=RGB):
-    return lambda: torch.randn(BATCH, channels, height, width or height)
+# Each input function carries a plain-language `label` describing what the model is given, for the report.
+
+def described(make, label):
+    make.label = label
+    return make
+
+
+def image(height, width=None, channels=RGB, label=None):
+    width = width or height
+    default = f"{height}×{width} {'grayscale ' if channels == GRAYSCALE else ''}image"
+    return described(lambda: torch.randn(BATCH, channels, height, width), label or default)
 
 
 def clip(frames, size):
     # torchvision video models take (batch, channels, frames, height, width).
-    return lambda: torch.randn(BATCH, RGB, frames, size, size)
+    return described(lambda: torch.randn(BATCH, RGB, frames, size, size), f"{frames} frames at {size}×{size}")
 
 
 def frames_first(frames, size):
     # VideoMAE takes (batch, frames, channels, height, width).
-    return lambda: torch.randn(BATCH, frames, RGB, size, size)
+    return described(lambda: torch.randn(BATCH, frames, RGB, size, size), f"{frames} frames at {size}×{size}")
 
 
 def tokens(length, vocab):
-    return lambda: torch.randint(0, vocab, (BATCH, length))
+    return described(lambda: torch.randint(0, vocab, (BATCH, length)), f"{length} tokens")
 
 
 def waveform(seconds, rate=SAMPLE_RATE, channels=None):
     shape = (BATCH, rate * seconds) if channels is None else (BATCH, channels, rate * seconds)
-    return lambda: torch.randn(*shape)
+    return described(lambda: torch.randn(*shape), f"{seconds} s of audio at {rate / 1000:g} kHz")
 
 
-def features(*shape):
-    return lambda: torch.randn(BATCH, *shape)
+def features(*shape, label):
+    return described(lambda: torch.randn(BATCH, *shape), label)
 
 
 def click_log(rows):
     # Dense features and categorical ids packed into one float tensor; DLRM splits them back apart.
-    return lambda: torch.cat([torch.randn(BATCH, CRITEO_DENSE), torch.randint(0, rows, (BATCH, CRITEO_SPARSE)).float()], dim=1)
+    return described(
+        lambda: torch.cat([torch.randn(BATCH, CRITEO_DENSE), torch.randint(0, rows, (BATCH, CRITEO_SPARSE)).float()], dim=1),
+        f"{CRITEO_DENSE} numeric and {CRITEO_SPARSE} categorical features",
+    )

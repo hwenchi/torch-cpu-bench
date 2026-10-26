@@ -169,7 +169,8 @@ def main():
     for m in selected:
         for t in THREADS:
             i += 1
-            row = {"model": m["name"], "family": m["family"], "domain": m["domain"], "task": m["task"], "threads": t}
+            row = {"model": m["name"], "family": m["family"], "domain": m["domain"], "task": m["task"],
+                   "input": m["input"].label, "threads": t}
             # Caches off so every compile time is a cold compile, not a reuse of an earlier thread count's work.
             env = dict(os.environ, OMP_NUM_THREADS=str(t), OPENBLAS_NUM_THREADS=str(t), TORCHINDUCTOR_FORCE_DISABLE_CACHES="1")
             start = time.perf_counter()

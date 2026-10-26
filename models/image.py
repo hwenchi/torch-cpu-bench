@@ -61,7 +61,12 @@ def sd15_vae_decoder():
 
 imagenet = image(IMAGENET_SIZE)
 detection = image(DETECTION_HEIGHT, DETECTION_WIDTH)
+# torchvision's R-CNN, RetinaNet and FCOS detectors resize to a shorter side of 800 before running.
+resized_detection = image(DETECTION_HEIGHT, DETECTION_WIDTH,
+                          label=f"{DETECTION_HEIGHT}×{DETECTION_WIDTH} image, resized to about 800×1066 inside the model")
 segmentation = image(SEGMENTATION_SIZE)
+flow_pair = image(FLOW_HEIGHT, FLOW_WIDTH, channels=2 * RGB, label=f"two {FLOW_HEIGHT}×{FLOW_WIDTH} frames")
+latent = features(LATENT_CHANNELS, LATENT_SIZE, LATENT_SIZE, label=f"{LATENT_SIZE}×{LATENT_SIZE} latent (a 512×512 image)")
 
 MODELS = [
     # Classification
@@ -106,15 +111,16 @@ MODELS = [
     {"name": "ssd300_vgg16", "family": "SSD", "task": "Detection",
      "build": lambda: Batched(tvd.ssd300_vgg16(weights_backbone=None)), "input": image(300)},
     {"name": "fasterrcnn_mobilenet_v3_320", "family": "Faster R-CNN", "task": "Detection",
-     "build": lambda: Batched(tvd.fasterrcnn_mobilenet_v3_large_320_fpn(weights_backbone=None)), "input": detection},
+     "build": lambda: Batched(tvd.fasterrcnn_mobilenet_v3_large_320_fpn(weights_backbone=None)),
+     "input": image(DETECTION_HEIGHT, DETECTION_WIDTH, label=f"{DETECTION_HEIGHT}×{DETECTION_WIDTH} image, resized to 320×427 inside the model")},
     {"name": "fasterrcnn_mobilenet_v3", "family": "Faster R-CNN", "task": "Detection",
-     "build": lambda: Batched(tvd.fasterrcnn_mobilenet_v3_large_fpn(weights_backbone=None)), "input": detection},
+     "build": lambda: Batched(tvd.fasterrcnn_mobilenet_v3_large_fpn(weights_backbone=None)), "input": resized_detection},
     {"name": "fasterrcnn_resnet50", "family": "Faster R-CNN", "task": "Detection",
-     "build": lambda: Batched(tvd.fasterrcnn_resnet50_fpn(weights_backbone=None)), "input": detection},
+     "build": lambda: Batched(tvd.fasterrcnn_resnet50_fpn(weights_backbone=None)), "input": resized_detection},
     {"name": "retinanet_resnet50", "family": "RetinaNet", "task": "Detection",
-     "build": lambda: Batched(tvd.retinanet_resnet50_fpn(weights_backbone=None)), "input": detection},
+     "build": lambda: Batched(tvd.retinanet_resnet50_fpn(weights_backbone=None)), "input": resized_detection},
     {"name": "fcos_resnet50", "family": "FCOS", "task": "Detection",
-     "build": lambda: Batched(tvd.fcos_resnet50_fpn(weights_backbone=None)), "input": detection},
+     "build": lambda: Batched(tvd.fcos_resnet50_fpn(weights_backbone=None)), "input": resized_detection},
     {"name": "detr_resnet50", "family": "DETR", "task": "Detection", "build": detr(), "input": detection},
 
     # Segmentation
@@ -131,25 +137,25 @@ MODELS = [
     {"name": "deeplabv3_resnet101", "family": "DeepLabV3", "task": "Segmentation",
      "build": lambda: tvs.deeplabv3_resnet101(weights_backbone=None), "input": segmentation},
     {"name": "maskrcnn_resnet50", "family": "Mask R-CNN", "task": "Segmentation",
-     "build": lambda: Batched(tvd.maskrcnn_resnet50_fpn(weights_backbone=None)), "input": detection},
+     "build": lambda: Batched(tvd.maskrcnn_resnet50_fpn(weights_backbone=None)), "input": resized_detection},
     {"name": "sam_vit_b_encoder", "family": "SAM", "task": "Segmentation",
      "build": lambda: SamVisionModel(SamVisionConfig()), "input": image(SAM_SIZE)},
 
     # Pose, depth, motion
     {"name": "keypointrcnn_resnet50", "family": "Keypoint R-CNN", "task": "Pose estimation",
-     "build": lambda: Batched(tvd.keypointrcnn_resnet50_fpn(weights_backbone=None)), "input": detection},
+     "build": lambda: Batched(tvd.keypointrcnn_resnet50_fpn(weights_backbone=None)), "input": resized_detection},
     {"name": "dpt_base", "family": "DPT", "task": "Depth estimation",
      "build": lambda: DPTForDepthEstimation(DPTConfig()), "input": image(DPT_SIZE)},
     {"name": "raft_small", "family": "RAFT", "task": "Optical flow",
-     "build": lambda: FramePair(tvf.raft_small()), "input": image(FLOW_HEIGHT, FLOW_WIDTH, channels=2 * RGB)},
+     "build": lambda: FramePair(tvf.raft_small()), "input": flow_pair},
     {"name": "raft_large", "family": "RAFT", "task": "Optical flow",
-     "build": lambda: FramePair(tvf.raft_large()), "input": image(FLOW_HEIGHT, FLOW_WIDTH, channels=2 * RGB)},
+     "build": lambda: FramePair(tvf.raft_large()), "input": flow_pair},
 
     # Generation
     {"name": "dcgan_generator", "family": "DCGAN", "task": "Image generation",
-     "build": lambda: DCGANGenerator(width=64), "input": features(GAN_NOISE, 1, 1)},
+     "build": lambda: DCGANGenerator(width=64), "input": features(GAN_NOISE, 1, 1, label=f"{GAN_NOISE}-number noise vector")},
     {"name": "sd15_unet_step", "family": "Latent diffusion", "task": "Image generation",
-     "build": sd15_unet(), "input": features(LATENT_CHANNELS, LATENT_SIZE, LATENT_SIZE)},
+     "build": sd15_unet(), "input": latent},
     {"name": "sd15_vae_decoder", "family": "Latent diffusion", "task": "Image generation",
-     "build": sd15_vae_decoder(), "input": features(LATENT_CHANNELS, LATENT_SIZE, LATENT_SIZE)},
+     "build": sd15_vae_decoder(), "input": latent},
 ]
