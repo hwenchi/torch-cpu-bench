@@ -70,6 +70,7 @@
 
   /* Type scale: h1 44 · h2 20 · h3 15 · body 15 · small 13 · micro 11 */
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0;
     background: var(--bg);
@@ -152,7 +153,7 @@
   .tick text { fill: var(--text-muted); font: 11px "IBM Plex Mono", ui-monospace, monospace; }
   .num, td:nth-child(n+3), #tooltip dd { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; }
   .axis-title { fill: var(--text-muted); font-size: 12px; }
-  .target-label { fill: var(--text-secondary); font-size: 11px; font-weight: 600; }
+  .target-label { fill: var(--text-primary); font-size: 11px; font-weight: 600; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; pointer-events: none; }
   .pt { transition: fill-opacity 150ms ease; }
   .pt.on { fill-opacity: 1; stroke: var(--text-primary); }
 
@@ -300,14 +301,17 @@ function niceHi(v) {
 const xDomain = [niceLo(Math.min(...xs) / 1.2), niceHi(Math.max(...xs) * 1.2)];
 const yDomain = [niceLo(Math.min(...ys) / 1.2), niceHi(Math.max(...ys) * 1.2)];
 
-function ticks([lo, hi]) {
-  // 1-2-5 per decade; when zoomed in far enough that leaves too few, use every integer step.
-  for (const steps of [NICE, [1, 2, 3, 4, 5, 6, 7, 8, 9]]) {
-    const out = [];
-    for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
-      for (const n of steps) { const v = n * 10 ** e; if (v >= lo * 0.999 && v <= hi * 1.001) out.push(v); }
-    if (out.length >= 3 || steps !== NICE) return out;
-  }
+// px between neighbouring tick labels: x labels sit side by side and are wider than y labels are tall.
+const MIN_TICK_GAP_X = 56, MIN_TICK_GAP_Y = 26;
+function ticks([lo, hi], pixels, minGap) {
+  // Densest of these that keeps labels apart: every integer step (zoomed far in), 1-2-5, or one per decade.
+  const decades = Math.log10(hi) - Math.log10(lo);
+  const options = [[1, 2, 3, 4, 5, 6, 7, 8, 9], NICE, [1]];
+  const steps = options.find(s => pixels / (decades * s.length) >= minGap) || [1];
+  const out = [];
+  for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
+    for (const n of steps) { const v = n * 10 ** e; if (v >= lo * 0.999 && v <= hi * 1.001) out.push(v); }
+  return out;
 }
 
 // Zoom state: the visible ranges, never wider than the full data range.
@@ -374,7 +378,10 @@ if (hw) {
   document.getElementById("hardware").hidden = false;
 }
 
-const sizeKey = [100e6, 500e6, 1e9].filter(p => p >= minParams && p <= maxParams * 1.1);
+// Two reference sizes: the largest round values up to half the biggest model, skipping any drawn at the minimum.
+const sizeKey = [1e6, 5e6, 10e6, 50e6, 100e6, 500e6, 1e9, 5e9]
+  .filter(p => p <= maxParams / 2 && radius(p) > R_MIN)
+  .slice(-2);
 document.getElementById("legend").innerHTML = domains.map(d => `<span>${swatch(d)}${DOMAIN_LABELS[d] || d}</span>`).join("") +
   `<span>` + sizeKey.map(p => {
     const r = radius(p);
@@ -399,10 +406,10 @@ function render() {
   plot = { m, iw, ih, lx0, lx1, ly0, ly1 };
 
   let s = `<defs><clipPath id="plot-area"><rect x="${m.left}" y="${m.top}" width="${iw}" height="${ih}"/></clipPath></defs>`;
-  for (const v of ticks(view.x))
+  for (const v of ticks(view.x, iw, MIN_TICK_GAP_X))
     s += `<g class="tick"><line x1="${sx(v)}" x2="${sx(v)}" y1="${m.top}" y2="${m.top + ih}" stroke="var(--grid)"/>` +
          `<text x="${sx(v)}" y="${m.top + ih + 18}" text-anchor="middle">${fmtGflops(v)}</text></g>`;
-  for (const v of ticks(view.y))
+  for (const v of ticks(view.y, ih, MIN_TICK_GAP_Y))
     s += `<g class="tick"><line x1="${m.left}" x2="${m.left + iw}" y1="${sy(v)}" y2="${sy(v)}" stroke="var(--grid)"/>` +
          `<text x="${m.left - 10}" y="${sy(v) + 4}" text-anchor="end">${fmtMs(v)}</text></g>`;
   s += `<line x1="${m.left}" x2="${m.left + iw}" y1="${m.top + ih}" y2="${m.top + ih}" stroke="var(--axis)"/>`;
@@ -415,8 +422,6 @@ function render() {
   const ty = sy(target);
   s += `<rect x="${m.left}" y="${m.top}" width="${iw}" height="${Math.max(0, ty - m.top)}" fill="var(--text-primary)" fill-opacity="0.03"/>`;
   s += `<line x1="${m.left}" x2="${m.left + iw}" y1="${ty}" y2="${ty}" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
-  if (ty >= m.top && ty <= m.top + ih)
-    s += `<text class="target-label" x="${m.left + iw - 4}" y="${ty - m.top < 20 ? ty + 15 : ty - 6}" text-anchor="end">${fmtMs(target)} budget${preset ? " · " + preset.label.toLowerCase() : ""}</text>`;
 
   // Largest first so small circles sit on top and stay hoverable.
   const atThreads = runs.filter(r => r.threads === threads);
@@ -429,6 +434,9 @@ function render() {
     s += `<circle cx="${x}" cy="${y}" r="${Math.max(rad, 8)}" fill="transparent" data-i="${i}" style="cursor:pointer"/>`;
   });
   s += `</g>`;
+  // Drawn after the points so circles can't cover it.
+  if (ty >= m.top && ty <= m.top + ih)
+    s += `<text class="target-label" x="${m.left + iw - 4}" y="${ty - m.top < 20 ? ty + 15 : ty - 6}" text-anchor="end">${fmtMs(target)} budget${preset ? " · " + preset.label.toLowerCase() : ""}</text>`;
   document.getElementById("zoom-reset").hidden = !isZoomed();
 
   const meeting = current.filter(r => timeOf(r) <= target).length;
