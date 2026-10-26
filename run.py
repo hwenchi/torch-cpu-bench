@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 
-THREADS = [1, 2, 4, 8]
+THREADS = [1, 2, 4]
 WARMUP = 1
 REPEATS = 5
 

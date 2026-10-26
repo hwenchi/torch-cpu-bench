@@ -30,10 +30,10 @@ spec:
           command: ["python", "run.py"]
           resources:
             requests:
-              cpu: "8"
+              cpu: "4"
               memory: 16Gi
             limits:
-              cpu: "8"
+              cpu: "4"
               memory: 16Gi
           volumeMounts:
             - name: results
