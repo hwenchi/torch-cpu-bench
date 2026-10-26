@@ -90,9 +90,9 @@
   .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 20px; }
   .count { margin-left: 8px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
-  .about { display: grid; gap: 20px; }
-  .about p { margin-top: 6px; color: var(--text-secondary); }
-  .about p + p { margin-top: 10px; }
+  .intro h3 { margin: 28px 0 8px; }
+  .intro p { color: var(--text-secondary); }
+  .intro p + p { margin-top: 12px; }
   .specs { display: grid; grid-template-columns: max-content 1fr; gap: 2px 20px; margin: -8px 0 20px; font-size: 13px; }
   .specs dt { color: var(--text-muted); }
   .specs dd { margin: 0; color: var(--text-secondary); }
@@ -196,7 +196,15 @@
 <main>
   <header>
     <h1>You might not need a GPU</h1>
-    <p class="lead">GPUs are costly resources and are typically much less available than CPUs on shared computing clusters. Their use is most beneficial for computationally intensive workloads that require repeated model execution, such as model training, large-scale data processing, high-throughput inference, and autoregressive or iterative generation in language and diffusion models, as well as for models whose single forward pass is very expensive. However, GPU acceleration is not necessary for every inference workload. Modern CPUs support vectorized instructions and multi-core parallelism, both of which are exploited by the optimized math libraries that deep learning frameworks build on. For mid-sized models processing requests sequentially, a small number of CPU cores may provide sufficient computational capacity while reducing competition for limited GPU resources.</p>
+    <div class="intro">
+      <h3>Hypothesis</h3>
+      <p>A GPU may not be necessary for deep learning inference workloads involving moderately sized models, small to moderate input sizes, low request volumes, and limited computational demands.</p>
+      <p>Modern CPUs support vector instruction sets, such as AVX2 and AVX-512 on compatible hardware, multi-core parallel execution, and optimized mathematical libraries such as oneDNN and oneMKL. These features can improve the efficiency of neural network operations, potentially making CPU-based inference a practical alternative to GPU-based inference for certain workloads.</p>
+      <h3>Experiment</h3>
+      <p id="experiment-scope"></p>
+      <p id="experiment-method"></p>
+      <p>All timings come from a single node, and each covers a single forward pass; for the language models this means processing a 128-token prompt, not generating text token by token. Everything runs in 32-bit precision without quantization, so tuned deployments could be faster. Weights are random, which does not change the amount of work for most models, but Mask R-CNN and Keypoint R-CNN run an extra head per detected object, so their times depend on how many objects a trained model would find. The FLOP counter covers matrix multiplies, convolutions and attention only; embedding lookups, graph message passing, Mamba's scan and detection post-processing are not counted, so those models do more work than their GFLOPs suggest.</p>
+    </div>
   </header>
 
   <section>
@@ -242,25 +250,6 @@
     <div class="table-wrap"><table id="table"></table></div>
   </section>
 
-  <section>
-    <div class="section-head"><h2>About the benchmark</h2></div>
-    <div class="about">
-      <div>
-        <h3>What's tested</h3>
-        <p id="what"></p>
-      </div>
-      <div>
-        <h3>How it's tested</h3>
-        <p id="how"></p>
-      </div>
-      <div>
-        <h3>Limits</h3>
-        <p>All timings come from a single node, and each one is a single forward pass. For the language models, that means reading a 128-token prompt, not generating text token by token. Everything runs in 32-bit precision with no quantization or compilation, so a tuned setup could be faster than what's shown here.</p>
-        <p>Weights are random. For most models this does not change the amount of work, but Mask R-CNN and Keypoint R-CNN run an extra head per detected object, so their times depend on how many objects a trained model would find. The R-CNN, RetinaNet and FCOS detectors also resize their input to about 800×1066 internally, and their times include that.</p>
-        <p>GFLOPs count matrix multiplies, convolutions and attention only. Embedding lookups, graph message passing, Mamba's scan and detection post-processing are not counted, so graph, recommendation, Mamba and detection models do more work than their GFLOPs suggest.</p>
-      </div>
-    </div>
-  </section>
 </main>
 <script>
 const DATA = __RESULTS_JSON__;
@@ -349,16 +338,21 @@ const swatch = domain =>
 const maxThreads = threadCounts[threadCounts.length - 1];
 
 const tasks = [...new Set(runs.map(r => r.task))];
-document.getElementById("what").textContent =
-  `${new Set(runs.map(r => r.model)).size} PyTorch models in ${families.length} families, across ${tasks.length} tasks: ${tasks.join(", ").toLowerCase()}. ` +
-  `They come from torchvision, Hugging Face transformers and diffusers, or are written in plain PyTorch, and all use random weights. ` +
-  `Each call is one forward pass at batch size 1, at the model's usual input size and through its default preprocessing.`;
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const listed = items => items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : `${items[0]}`;
+document.getElementById("experiment-scope").textContent =
+  `This report investigates the hypothesis by benchmarking ${plural(new Set(runs.map(r => r.model)).size, "deep learning model")} from ${plural(families.length, "family").replace("familys", "families")} ` +
+  `across ${plural(tasks.length, "task")} (${listed(tasks).toLowerCase()}) on CPU hardware, at ${listed(threadCounts)} threads` +
+  `${hasCompiled ? ", both as plain PyTorch and compiled with torch.compile" : ""}. ` +
+  `The models come from torchvision, Hugging Face transformers and diffusers, or are written in plain PyTorch, and use random weights. ` +
+  `Each model processes one input at a time, at its usual input size and through its default preprocessing. ` +
+  `The results are presented through a chart and a table that compare inference latency against each model's compute cost and against common latency budgets.`;
 
-document.getElementById("how").textContent =
+document.getElementById("experiment-method").textContent =
   `The benchmark uses the CPU build of PyTorch and runs as a Kubernetes Job with a ${maxThreads}-CPU limit on a node shared with other workloads. ` +
-  `Each model is timed at ${threadCounts.join(", ")} threads, each in a fresh process. ` +
-  `A run makes ${DATA.config.warmup} warm-up call and then ${DATA.config.repeats} timed calls, and the chart shows the median. ` +
-  `GFLOPs come from PyTorch's FLOP counter, which counts one multiply-add as 2 FLOPs (see Limits for what it leaves out).`;
+  `Each model and thread count runs in a fresh process: ${DATA.config.warmup} warm-up call, then ${DATA.config.repeats} timed calls, of which the median is reported. ` +
+  `${hasCompiled ? "The compiled measurement repeats this after compiling the model, and records the compile time separately. " : ""}` +
+  `Compute is measured with PyTorch's FLOP counter, which counts one multiply-add as 2 FLOPs.`;
 
 const hw = DATA.hardware;
 if (hw) {
