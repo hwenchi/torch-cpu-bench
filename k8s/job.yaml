@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: torch-cpu-bench-results
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Mi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: torch-cpu-bench
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: bench
+          image: ghcr.io/hwenchi/torch-cpu-bench:latest
+          command: ["python", "run.py"]
+          resources:
+            requests:
+              cpu: "8"
+              memory: 16Gi
+            limits:
+              cpu: "8"
+              memory: 16Gi
+          volumeMounts:
+            - name: results
+              mountPath: /bench/out
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: torch-cpu-bench-results
