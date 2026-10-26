@@ -1,7 +1,13 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: torch-cpu-bench
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: torch-cpu-bench-results
+  namespace: torch-cpu-bench
 spec:
   accessModes: [ReadWriteOnce]
   resources:
@@ -12,6 +18,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: torch-cpu-bench
+  namespace: torch-cpu-bench
 spec:
   backoffLimit: 0
   template:
